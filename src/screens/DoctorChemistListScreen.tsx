@@ -11,6 +11,9 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../types/navigation';
 import SimpleSearchComponent from '../components/SimpleSearchComponent';
 import Loader from '../components/Loader';
 import { gqlFetch } from '../api/graphql';
@@ -36,14 +39,13 @@ interface Chemist {
   profileImage: string;
 }
 
-interface DoctorChemistListScreenProps {
-  onBack: () => void;
-  onDoctorSelect?: (doctorId: string) => void;
-  onChemistSelect?: (chemistId: string) => void;
-  listType?: 'doctors' | 'chemists' | 'both';
-}
+type DoctorChemistListScreenRouteProp = RouteProp<RootStackParamList, 'DoctorChemistList'>;
+type DoctorChemistListScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'DoctorChemistList'>;
 
-export default function DoctorChemistListScreen({ onBack, onDoctorSelect, onChemistSelect, listType = 'both' }: DoctorChemistListScreenProps) {
+export default function DoctorChemistListScreen() {
+  const route = useRoute<DoctorChemistListScreenRouteProp>();
+  const navigation = useNavigation<DoctorChemistListScreenNavigationProp>();
+  const listType = route.params?.listType || 'both';
   const [activeTab, setActiveTab] = useState<'doctors' | 'chemists'>('doctors');
   const [searchVisible, setSearchVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -201,7 +203,7 @@ export default function DoctorChemistListScreen({ onBack, onDoctorSelect, onChem
     return (
       <TouchableOpacity 
         style={styles.listItem}
-        onPress={() => onDoctorSelect?.(item.id)}
+        onPress={() => navigation.navigate('DoctorProfile', { doctorId: item.id })}
       >
         <View style={styles.listItemLeft}>
           <Image 
@@ -229,7 +231,7 @@ export default function DoctorChemistListScreen({ onBack, onDoctorSelect, onChem
     return (
       <TouchableOpacity 
         style={styles.listItem}
-        onPress={() => onChemistSelect?.(item.id)}
+        onPress={() => navigation.navigate('ChemistProfile', { chemistId: item.id })}
       >
         <View style={styles.listItemLeft}>
           <Image 
@@ -275,7 +277,7 @@ export default function DoctorChemistListScreen({ onBack, onDoctorSelect, onChem
       style={styles.container}
     >
       <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={styles.backButton}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#0f766e" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>
@@ -367,9 +369,9 @@ export default function DoctorChemistListScreen({ onBack, onDoctorSelect, onChem
         items={searchItems}
         onItemSelect={(id) => {
           if (listType === 'doctors' || (listType === 'both' && activeTab === 'doctors')) {
-            onDoctorSelect?.(id);
+            navigation.navigate('DoctorProfile', { doctorId: id });
           } else {
-            onChemistSelect?.(id);
+            navigation.navigate('ChemistProfile', { chemistId: id });
           }
         }}
         searchPlaceholder={`Search ${listType === 'doctors' ? 'doctors' : listType === 'chemists' ? 'chemists' : activeTab}...`}

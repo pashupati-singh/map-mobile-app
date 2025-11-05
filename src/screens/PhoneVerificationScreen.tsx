@@ -11,6 +11,8 @@ import {
   ScrollView,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { gqlFetch } from '../api/graphql';
+import { RESEND_OTP_MUTATION } from '../graphql/mutations/auth';
 
 interface PhoneVerificationScreenProps {
   onCodeSent: (phone: string) => void;
@@ -43,17 +45,27 @@ export default function PhoneVerificationScreen({ onCodeSent, onBack }: PhoneVer
     setIsLoading(true);
 
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      Alert.alert('Code Sent', 'Verification code has been sent to your phone', [
-        {
-          text: 'OK',
-          onPress: () => onCodeSent(phone),
-        },
-      ]);
-    } catch (error) {
-      Alert.alert('Error', 'Failed to send verification code. Please try again.');
+      type ResendOtpResponse = {
+        resendOtp: {
+          code: number;
+        };
+      };
+
+      const variables: { type: string; email?: string; phone?: string } = {
+        type: 'PHONE',
+        phone: phone,
+      };
+
+      const data = await gqlFetch<ResendOtpResponse>(RESEND_OTP_MUTATION, variables, undefined, true);
+      const result = data.resendOtp;
+      console.log(1,result);
+      if (result.code === 200) {
+        onCodeSent(phone);
+      } else {
+        Alert.alert('Error', 'Failed to send verification code. Please try again.');
+      }
+    } catch (error: any) {
+      Alert.alert('Error', error?.message || 'Failed to send verification code. Please try again.');
     } finally {
       setIsLoading(false);
     }

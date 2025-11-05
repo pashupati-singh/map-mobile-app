@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { StatusBar } from 'expo-status-bar';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   View,
   Text,
@@ -13,6 +15,9 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../types/navigation';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 interface ReminderFormData {
@@ -22,11 +27,15 @@ interface ReminderFormData {
 }
 
 interface SetReminderFormProps {
-  onBack: () => void;
   onSubmit?: (data: ReminderFormData) => void;
 }
 
-export default function SetReminderForm({ onBack, onSubmit }: SetReminderFormProps) {
+type SetReminderFormNavigationProp = NativeStackNavigationProp<RootStackParamList, 'SetReminder'>;
+
+export default function SetReminderForm(props?: SetReminderFormProps) {
+  const insets = useSafeAreaInsets();
+  const { onSubmit } = props || {};
+  const navigation = useNavigation<SetReminderFormNavigationProp>();
   const [formData, setFormData] = useState<ReminderFormData>({
     date: new Date(),
     heading: '',
@@ -65,7 +74,7 @@ export default function SetReminderForm({ onBack, onSubmit }: SetReminderFormPro
         [
           {
             text: 'OK',
-            onPress: () => onBack(),
+            onPress: () => navigation.goBack(),
           },
         ]
       );
@@ -77,12 +86,10 @@ export default function SetReminderForm({ onBack, onSubmit }: SetReminderFormPro
       colors={['#f0fdfa', '#ecfdf5', '#f0fdf4']}
       style={styles.container}
     >
+        <StatusBar style="dark" translucent backgroundColor="transparent" />
+        <SafeAreaView style={{ flex: 1 }}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#0f766e" />
-        </TouchableOpacity>
         <Text style={styles.headerTitle}>Set Reminder</Text>
-        <View style={{ width: 24 }} />
       </View>
 
       <KeyboardAvoidingView 
@@ -171,10 +178,11 @@ export default function SetReminderForm({ onBack, onSubmit }: SetReminderFormPro
           }}
         />
       )}
+      </SafeAreaView>
     </LinearGradient>
   );
 }
-
+ 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -183,11 +191,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingTop: 50,
+    paddingTop: 80,
     paddingBottom: 20,
   },
   backButton: {

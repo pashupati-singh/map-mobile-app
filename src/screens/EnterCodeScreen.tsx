@@ -10,6 +10,8 @@ import {
   Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { gqlFetch } from '../api/graphql';
+import { RESEND_OTP_MUTATION, VERIFY_OTP_MUTATION } from '../graphql/mutations/auth';
 
 interface EnterCodeScreenProps {
   email?: string;
@@ -31,7 +33,7 @@ export default function EnterCodeScreen({
   const [resendTimer, setResendTimer] = useState(60);
   const [canResend, setCanResend] = useState(false);
   const inputRefs = useRef<TextInput[]>([]);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     // Start the 60-second timer
@@ -87,47 +89,100 @@ export default function EnterCodeScreen({
     setIsLoading(true);
 
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      Alert.alert('Success', 'Code verified successfully!', [
-        {
-          text: 'OK',
-          onPress: () => onCodeVerified(codeString),
-        },
-      ]);
-    } catch (error) {
-      Alert.alert('Error', 'Invalid verification code. Please try again.');
+      type VerifyOtpResponse = {
+        verifyOtp: {
+          code: number;
+          message: string;
+        };
+      };
+
+      const variables: { 
+        type: string; 
+        otpOrToken: string; 
+        email?: string; 
+        phone?: string 
+      } = email
+        ? { 
+            type: 'EMAIL', 
+            otpOrToken: codeString, 
+            email: email 
+          }
+        : { 
+            type: 'PHONE', 
+            otpOrToken: codeString, 
+            phone: phone 
+          };
+
+      const data = await gqlFetch<VerifyOtpResponse>(VERIFY_OTP_MUTATION, variables, undefined, true);
+      const result = data.verifyOtp;
+
+      if (result.code === 200) {
+        Alert.alert('Success', result.message || 'Code verified successfully!', [
+          {
+            text: 'OK',
+            onPress: () => onCodeVerified(codeString),
+          },
+        ]);
+      } else {
+        Alert.alert('Error', result.message || 'Invalid verification code. Please try again.');
+      }
+    } catch (error: any) {
+      Alert.alert('Error', error?.message || 'Invalid verification code. Please try again.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleResendCode = () => {
+  const handleResendCode = async () => {
     if (!canResend) return;
-    
-    // Reset timer
-    setCanResend(false);
-    setResendTimer(60);
-    
-    // Start new timer
-    timerRef.current = setInterval(() => {
-      setResendTimer((prev) => {
-        if (prev <= 1) {
-          setCanResend(true);
-          if (timerRef.current) {
-            clearInterval(timerRef.current);
-          }
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
 
-    // Call parent resend function
-    onResendCode();
-    
-    Alert.alert('Code Sent', 'A new verification code has been sent');
+    try {
+      type ResendOtpResponse = {
+        resendOtp: {
+          code: number;
+        };
+      };
+
+      const variables: { type: string; email?: string; phone?: string } = email
+        ? { type: 'EMAIL', email: email }
+        : { type: 'PHONE', phone: phone };
+
+      const data = await gqlFetch<ResendOtpResponse>(RESEND_OTP_MUTATION, variables, undefined, true);
+      const result = data.resendOtp;
+
+      if (result.code === 200) {
+        // Reset timer
+        setCanResend(false);
+        setResendTimer(60);
+        
+        // Start new timer
+        if (timerRef.current) {
+          clearInterval(timerRef.current);
+        }
+        
+        timerRef.current = setInterval(() => {
+          setResendTimer((prev) => {
+            if (prev <= 1) {
+              setCanResend(true);
+              if (timerRef.current) {
+                clearInterval(timerRef.current);
+              }
+              return 0;
+            }
+            return prev - 1;
+          });
+        }, 1000);
+
+        // Call parent resend function
+        onResendCode();
+        
+        Alert.alert('Code Sent', `A new verification code has been sent to ${getContactInfo()}`);
+      } else {
+        Alert.alert('Error', 'Failed to resend verification code. Please try again.');
+      }
+    } catch (error: any) {
+      Alert.alert('Error', error?.message || 'Failed to resend verification code. Please try again.');
+    }
   };
 
   const getContactInfo = () => {
@@ -176,8 +231,14 @@ export default function EnterCodeScreen({
           {/* Header */}
           <View style={styles.header}>
             <Text style={styles.title}>Enter Verification Code</Text>
+            <View style={styles.contactInfoContainer}>
+              <Text style={styles.contactInfoLabel}>
+                Code sent to {email ? 'Email' : 'Phone'}:
+              </Text>
+              <Text style={styles.contactInfoValue}>{getContactInfo()}</Text>
+            </View>
             <Text style={styles.subtitle}>
-              We sent a 6-digit code to {getContactInfo()}
+              Enter the 6-digit code we sent to verify your {getContactType()}
             </Text>
           </View>
 
@@ -324,10 +385,33 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: 'bold',
     color: '#1f2937',
-    marginBottom: 8,
+    marginBottom: 16,
+  },
+  contactInfoContainer: {
+    backgroundColor: '#f0fdfa',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 8,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#d1fae5',
+    width: '100%',
+  },
+  contactInfoLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#6b7280',
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  contactInfoValue: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#0f766e',
+    textAlign: 'center',
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#6b7280',
     textAlign: 'center',
   },

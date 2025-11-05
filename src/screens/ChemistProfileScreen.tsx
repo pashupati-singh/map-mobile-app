@@ -11,6 +11,9 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../types/navigation';
 import { gqlFetch } from '../api/graphql';
 import { CHEMIST_QUERY } from '../graphql/query/chemist';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -67,12 +70,13 @@ interface ChemistProfileData {
   }[];
 }
 
-interface ChemistProfileScreenProps {
-  chemistId: string;
-  onBack: () => void;
-}
+type ChemistProfileScreenRouteProp = RouteProp<RootStackParamList, 'ChemistProfile'>;
+type ChemistProfileScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'ChemistProfile'>;
 
-export default function ChemistProfileScreen({ chemistId, onBack }: ChemistProfileScreenProps) {
+export default function ChemistProfileScreen() {
+  const route = useRoute<ChemistProfileScreenRouteProp>();
+  const navigation = useNavigation<ChemistProfileScreenNavigationProp>();
+  const { chemistId } = route.params;
   const [chemistProfileData, setChemistProfileData] = useState<ChemistProfileData | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -224,7 +228,7 @@ export default function ChemistProfileScreen({ chemistId, onBack }: ChemistProfi
         style={styles.container}
       >
         <View style={styles.header}>
-          <TouchableOpacity onPress={onBack} style={styles.backButton}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
             <Ionicons name="arrow-back" size={24} color="#0f766e" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Chemist Profile</Text>
@@ -245,7 +249,7 @@ export default function ChemistProfileScreen({ chemistId, onBack }: ChemistProfi
         style={styles.container}
       >
         <View style={styles.header}>
-          <TouchableOpacity onPress={onBack} style={styles.backButton}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
             <Ionicons name="arrow-back" size={24} color="#0f766e" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Chemist Profile</Text>

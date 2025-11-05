@@ -8,12 +8,14 @@ import {
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../types/navigation';
 
-interface ReportsScreenProps {
-  onBack: () => void;
-}
+type ReportsScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Reports'>;
 
-export default function ReportsScreen({ onBack }: ReportsScreenProps) {
+export default function ReportsScreen() {
+  const navigation = useNavigation<ReportsScreenNavigationProp>();
   const callReportOptions = [
     { id: '1', title: 'Generate Call Report', icon: 'add-circle-outline' },
     { id: '2', title: 'View All Call Reports', icon: 'list-outline' },
@@ -45,7 +47,7 @@ export default function ReportsScreen({ onBack }: ReportsScreenProps) {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={onBack}>
+        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={24} color="#0f766e" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Reports</Text>

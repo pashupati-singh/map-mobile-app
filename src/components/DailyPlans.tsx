@@ -15,7 +15,7 @@ interface DailyPlan {
   title: string;
   description: string;
   time: string;
-  status: 'completed' | 'pending' | 'in-progress';
+  status: 'completed' | 'pending' | 'in-progress' | 'abm-will-work';
   statusText?: string;
   priority: 'high' | 'medium' | 'low';
   type?: 'doctor' | 'chemist';
@@ -35,12 +35,14 @@ export default function DailyPlans({ plans, onCreatePlan }: DailyPlansProps) {
     switch (status) {
       case 'completed':
         return '#10b981';
+      case 'abm-will-work':
+        return '#10b981'; // Green color
       case 'in-progress':
         return '#f59e0b';
       case 'pending':
-        return '#6b7280';
+        return '#d97706'; // Mustard color
       default:
-        return '#6b7280';
+        return '#d97706'; // Mustard color for pending
     }
   };
 
@@ -60,6 +62,8 @@ export default function DailyPlans({ plans, onCreatePlan }: DailyPlansProps) {
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'completed':
+        return 'checkmark-circle';
+      case 'abm-will-work':
         return 'checkmark-circle';
       case 'in-progress':
         return 'time';

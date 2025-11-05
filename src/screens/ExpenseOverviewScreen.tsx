@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -13,7 +13,9 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { PieChart } from 'react-native-chart-kit';
-import ExpenseFlowScreen from './ExpenseFlowScreen';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../types/navigation';
 
 interface ExpenseCategory {
   id: string;
@@ -25,28 +27,18 @@ interface ExpenseCategory {
   type: 'doctor' | 'chemist';
 }
 
-interface ExpenseOverviewScreenProps {
-  onBack: () => void;
-}
+type ExpenseOverviewScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'ExpenseOverview'>;
 
-export default function ExpenseOverviewScreen({ onBack }: ExpenseOverviewScreenProps) {
+export default function ExpenseOverviewScreen() {
+  const navigation = useNavigation<ExpenseOverviewScreenNavigationProp>();
   const [currentYear, setCurrentYear] = useState(2025);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<'daily' | 'weekly' | 'monthly' | 'q1' | 'q2' | 'q3' | 'q4' | '6months' | 'yearly'>('yearly');
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [showExpenseFlowDropdown, setShowExpenseFlowDropdown] = useState(false);
-  const [showExpenseFlow, setShowExpenseFlow] = useState(false);
-
-  // Show ExpenseFlowScreen if selected
-  if (showExpenseFlow) {
-    return (
-      <ExpenseFlowScreen
-        onBack={() => setShowExpenseFlow(false)}
-        viewMode={viewMode}
-        currentDate={currentDate}
-      />
-    );
-  }
+  const handleNavigateToExpenseFlow = () => {
+    navigation.navigate('ExpenseFlow', { viewMode, currentDate });
+  };
 
   // Mock data for expense categories
   const expenseCategories: ExpenseCategory[] = [
@@ -276,7 +268,7 @@ export default function ExpenseOverviewScreen({ onBack }: ExpenseOverviewScreenP
     >
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={styles.backButton}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#0f766e" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Expense Overview</Text>
@@ -345,7 +337,7 @@ export default function ExpenseOverviewScreen({ onBack }: ExpenseOverviewScreenP
                 style={styles.dropdownItem}
                 onPress={() => {
                   console.log('Expense Flow selected, navigating to ExpenseFlowScreen');
-                  setShowExpenseFlow(true);
+                  handleNavigateToExpenseFlow();
                   setShowExpenseFlowDropdown(false);
                 }}
               >

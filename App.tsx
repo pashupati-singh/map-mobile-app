@@ -7,12 +7,24 @@ import EmailLoginScreen from './src/screens/EmailLoginScreen';
 import MPINLoginScreen from './src/screens/MPINLoginScreen';
 import VerificationMainScreen from './src/screens/VerificationMainScreen';
 import HomeScreen from './src/screens/HomeScreen';
+import DailyPlansForm from './src/forms/DailyPlansForm';
+import DoctorChemistListScreen from './src/screens/DoctorChemistListScreen';
+import DoctorProfileScreen from './src/screens/DoctorProfileScreen';
+import ChemistProfileScreen from './src/screens/ChemistProfileScreen';
+import DCRFormScreen from './src/screens/DCRFormScreen';
+import ExpenseOverviewScreen from './src/screens/ExpenseOverviewScreen';
+import ExpenseFlowScreen from './src/screens/ExpenseFlowScreen';
+import CalendarScreen from './src/screens/CalendarScreen';
+import NotificationsScreen from './src/screens/NotificationsScreen';
+import { SetReminderForm } from './src/forms';
+import DCRScreen from './src/screens/DCRScreen';
 import SuccessNotification from './src/components/SuccessNotification';
 import { LoginManager } from './src/utils/LoginManager';
 import { UserDataManager } from './src/utils/UserDataManager';
 import { AuthHandler } from './src/utils/AuthHandler';
+import { RootStackParamList } from './src/types/navigation';
 
-const Stack = createNativeStackNavigator();
+const Stack = createNativeStackNavigator<RootStackParamList>();
 
 type LoginType = 'email' | 'mpin';
 
@@ -110,13 +122,71 @@ export default function App() {
   if (isLoggedIn) {
     return (
       <NavigationContainer>
-        <Stack.Navigator>
+        <Stack.Navigator
+          screenOptions={{
+            headerShown: false,
+            animation: 'slide_from_right',
+          }}
+        >
           <Stack.Screen 
             name="Home" 
             options={{ headerShown: false }}
           >
             {() => <HomeScreenWrapper onLogout={handleLogout} />}
           </Stack.Screen>
+          <Stack.Screen 
+            name="DailyPlansForm" 
+            component={DailyPlansForm}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen 
+            name="DoctorChemistList" 
+            component={DoctorChemistListScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen 
+            name="DoctorProfile" 
+            component={DoctorProfileScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen 
+            name="ChemistProfile" 
+            component={ChemistProfileScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen 
+            name="DCRForm" 
+            component={DCRFormScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen 
+            name="ExpenseOverview" 
+            component={ExpenseOverviewScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen 
+            name="ExpenseFlow" 
+            component={ExpenseFlowScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen 
+            name="Calendar" 
+            component={CalendarScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen 
+            name="Notifications" 
+            component={NotificationsScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen 
+            name="SetReminder" 
+            component={SetReminderForm}
+            options={{ headerShown: false , statusBarStyle: 'dark',          // iOS + Android
+              statusBarTranslucent: true,      // Android
+              statusBarBackgroundColor: 'transparent', }}
+          />
+          
         </Stack.Navigator>
       </NavigationContainer>
     );
@@ -145,63 +215,3 @@ export default function App() {
     </View>
   );
 }
-
-
-{/* <span class="loader"></span> */}
-
-// .loader {
-//   width: 48px;
-//   height: 48px;
-//   margin: auto;
-//   position: relative;
-// }
-// .loader:before {
-//     content: '';
-//     width: 48px;
-//     height: 5px;
-//     background: #000;
-//     opacity: 0.25;
-//     position: absolute;
-//     top: 60px;
-//     left: 0;
-//     border-radius: 50%;
-//     animation: shadow 0.5s linear infinite;
-//   }
-//   .loader:after {
-//     content: '';
-//     width: 100%;
-//     height: 100%;
-//     background: #fff;
-//     animation: bxSpin 0.5s linear infinite;
-//     position: absolute;
-//     top: 0;
-//     left: 0;
-//     border-radius: 4px;
-//   }
-// @keyframes bxSpin {
-//   17% {
-//     border-bottom-right-radius: 3px;
-//   }
-//   25% {
-//     transform: translateY(9px) rotate(22.5deg);
-//   }
-//   50% {
-//     transform: translateY(18px) scale(1, .9) rotate(45deg);
-//     border-bottom-right-radius: 40px;
-//   }
-//   75% {
-//     transform: translateY(9px) rotate(67.5deg);
-//   }
-//   100% {
-//     transform: translateY(0) rotate(90deg);
-//   }
-// }
-
-// @keyframes shadow {
-//   0%, 100% {
-//     transform: scale(1, 1);
-//   }
-//   50% {
-//     transform: scale(1.2, 1);
-//   }
-// }

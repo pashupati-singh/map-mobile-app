@@ -16,6 +16,9 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../types/navigation';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 interface Doctor {
@@ -55,11 +58,10 @@ interface DCRFormData {
   remarks: string;
 }
 
-interface DCRFormScreenProps {
-  onBack: () => void;
-}
+type DCRFormScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'DCRForm'>;
 
-export default function DCRFormScreen({ onBack }: DCRFormScreenProps) {
+export default function DCRFormScreen() {
+  const navigation = useNavigation<DCRFormScreenNavigationProp>();
   const [formData, setFormData] = useState<DCRFormData>({
     selectedPerson: null,
     personType: null,
@@ -210,7 +212,7 @@ export default function DCRFormScreen({ onBack }: DCRFormScreenProps) {
       [
         {
           text: 'OK',
-          onPress: () => onBack(),
+          onPress: () => navigation.goBack(),
         },
       ]
     );
@@ -256,7 +258,7 @@ export default function DCRFormScreen({ onBack }: DCRFormScreenProps) {
       style={styles.container}
     >
       <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={styles.backButton}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#0f766e" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Call Reporting</Text>

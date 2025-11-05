@@ -11,6 +11,9 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../types/navigation';
 import { gqlFetch } from '../api/graphql';
 import { DOCTOR_QUERY } from '../graphql/query/doctor';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -68,12 +71,13 @@ interface DoctorProfileData {
   doctorProduct: Product[];
 }
 
-interface DoctorProfileScreenProps {
-  doctorId: string;
-  onBack: () => void;
-}
+type DoctorProfileScreenRouteProp = RouteProp<RootStackParamList, 'DoctorProfile'>;
+type DoctorProfileScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'DoctorProfile'>;
 
-export default function DoctorProfileScreen({ doctorId, onBack }: DoctorProfileScreenProps) {
+export default function DoctorProfileScreen() {
+  const route = useRoute<DoctorProfileScreenRouteProp>();
+  const navigation = useNavigation<DoctorProfileScreenNavigationProp>();
+  const { doctorId } = route.params;
   const [doctorProfileData, setDoctorProfileData] = useState<DoctorProfileData | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -239,7 +243,7 @@ export default function DoctorProfileScreen({ doctorId, onBack }: DoctorProfileS
         style={styles.container}
       >
         <View style={styles.header}>
-          <TouchableOpacity onPress={onBack} style={styles.backButton}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
             <Ionicons name="arrow-back" size={24} color="#0f766e" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Doctor Profile</Text>
@@ -260,7 +264,7 @@ export default function DoctorProfileScreen({ doctorId, onBack }: DoctorProfileS
         style={styles.container}
       >
         <View style={styles.header}>
-          <TouchableOpacity onPress={onBack} style={styles.backButton}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
             <Ionicons name="arrow-back" size={24} color="#0f766e" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Doctor Profile</Text>

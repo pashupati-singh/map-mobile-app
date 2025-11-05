@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,16 +11,25 @@ import {
   ScrollView,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { gqlFetch } from '../api/graphql';
+import { RESEND_OTP_MUTATION } from '../graphql/mutations/auth';
 
 interface EmailVerificationScreenProps {
   onCodeSent: (email: string) => void;
   onBack: () => void;
+  initialEmail?: string;
 }
 
-export default function EmailVerificationScreen({ onCodeSent, onBack }: EmailVerificationScreenProps) {
-  const [email, setEmail] = useState('');
+export default function EmailVerificationScreen({ onCodeSent, onBack, initialEmail }: EmailVerificationScreenProps) {
+  const [email, setEmail] = useState(initialEmail || '');
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<{ email?: string }>({});
+
+  useEffect(() => {
+    if (initialEmail) {
+      setEmail(initialEmail);
+    }
+  }, [initialEmail]);
 
   const validateEmail = (email: string): boolean => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -43,17 +52,27 @@ export default function EmailVerificationScreen({ onCodeSent, onBack }: EmailVer
     setIsLoading(true);
 
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      Alert.alert('Code Sent', 'Verification code has been sent to your email', [
-        {
-          text: 'OK',
-          onPress: () => onCodeSent(email),
-        },
-      ]);
-    } catch (error) {
-      Alert.alert('Error', 'Failed to send verification code. Please try again.');
+      type ResendOtpResponse = {
+        resendOtp: {
+          code: number;
+        };
+      };
+
+      const variables: { type: string; email?: string; phone?: string } = {
+        type: 'EMAIL',
+        email: email,
+      };
+
+      const data = await gqlFetch<ResendOtpResponse>(RESEND_OTP_MUTATION, variables, undefined, true);
+      const result = data.resendOtp;
+
+      if (result.code === 200) {
+        onCodeSent(email);
+      } else {
+        Alert.alert('Error', 'Failed to send verification code. Please try again.');
+      }
+    } catch (error: any) {
+      Alert.alert('Error', error?.message || 'Failed to send verification code. Please try again.');
     } finally {
       setIsLoading(false);
     }

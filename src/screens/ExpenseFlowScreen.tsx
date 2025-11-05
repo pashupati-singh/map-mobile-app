@@ -11,18 +11,20 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { LineChart } from 'react-native-chart-kit';
+import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../types/navigation';
 
-interface ExpenseFlowScreenProps {
-  onBack: () => void;
-  viewMode: 'daily' | 'weekly' | 'monthly' | 'q1' | 'q2' | 'q3' | 'q4' | '6months' | 'yearly';
-  currentDate: Date;
-}
+type ExpenseFlowScreenRouteProp = RouteProp<RootStackParamList, 'ExpenseFlow'>;
+type ExpenseFlowScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'ExpenseFlow'>;
 
-export default function ExpenseFlowScreen({ onBack, viewMode, currentDate }: ExpenseFlowScreenProps) {
-  console.log('ExpenseFlowScreen rendered with viewMode:', viewMode, 'currentDate:', currentDate);
+export default function ExpenseFlowScreen() {
+  const route = useRoute<ExpenseFlowScreenRouteProp>();
+  const navigation = useNavigation<ExpenseFlowScreenNavigationProp>();
+  const { viewMode: initialViewMode, currentDate: initialDate } = route.params;
   const [showFilterModal, setShowFilterModal] = useState(false);
-  const [selectedViewMode, setSelectedViewMode] = useState(viewMode);
-  const [selectedDate, setSelectedDate] = useState(currentDate);
+  const [selectedViewMode, setSelectedViewMode] = useState(initialViewMode);
+  const [selectedDate, setSelectedDate] = useState(initialDate);
 
   // Debug modal state
   console.log('Modal should be visible:', showFilterModal);
@@ -274,7 +276,7 @@ export default function ExpenseFlowScreen({ onBack, viewMode, currentDate }: Exp
     >
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={styles.backButton}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#0f766e" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Expense Flow</Text>

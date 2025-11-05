@@ -10,11 +10,12 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../types/navigation';
 import { ReminderManager, UserReminder } from '../utils/ReminderManager';
 
-interface NotificationsScreenProps {
-  onBack: () => void;
-}
+type NotificationsScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Notifications'>;
 
 interface NotificationItem {
   id: string;
@@ -28,7 +29,8 @@ interface NotificationItem {
 
 const { width } = Dimensions.get('window');
 
-export default function NotificationsScreen({ onBack }: NotificationsScreenProps) {
+export default function NotificationsScreen() {
+  const navigation = useNavigation<NotificationsScreenNavigationProp>();
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [filter, setFilter] = useState<'all' | 'unread' | 'high'>('all');
 
@@ -225,7 +227,7 @@ export default function NotificationsScreen({ onBack }: NotificationsScreenProps
         style={styles.header}
       >
         <View style={styles.headerContent}>
-          <TouchableOpacity onPress={onBack} style={styles.backButton}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
             <Ionicons name="arrow-back" size={24} color="white" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Notifications</Text>

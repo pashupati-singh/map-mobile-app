@@ -8,14 +8,14 @@ import {
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { SetReminderForm } from '../forms';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../types/navigation';
 
-interface DCRScreenProps {
-  onBack: () => void;
-}
+type DCRScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'DCR'>;
 
-export default function DCRScreen({ onBack }: DCRScreenProps) {
-  const [showReminderForm, setShowReminderForm] = useState(false);
+export default function DCRScreen() {
+  const navigation = useNavigation<DCRScreenNavigationProp>();
 
   const dailyPlanOptions = [
     { id: '1', title: 'Create Daily Plan', icon: 'add-circle-outline' },
@@ -46,24 +46,17 @@ export default function DCRScreen({ onBack }: DCRScreenProps) {
 
   const handleReminderAction = (option: any) => {
     if (option.action === 'setReminder') {
-      setShowReminderForm(true);
+      navigation.navigate('SetReminder');
     } else {
       Alert.alert(option.title, `${option.title} functionality will be implemented`);
     }
-  };
-
-  const handleReminderSubmit = (data: any) => {
-    // Handle reminder submission here
-    console.log('Reminder data:', data);
-    setShowReminderForm(false);
-    Alert.alert('Success', 'Reminder set successfully!');
   };
 
   return (
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={onBack}>
+        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={24} color="#0f766e" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>DCR</Text>
@@ -132,13 +125,6 @@ export default function DCRScreen({ onBack }: DCRScreenProps) {
         </View>
       </ScrollView>
 
-      {/* Reminder Form Modal */}
-      {showReminderForm && (
-        <SetReminderForm
-          onBack={() => setShowReminderForm(false)}
-          onSubmit={handleReminderSubmit}
-        />
-      )}
     </View>
   );
 }

@@ -297,7 +297,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginBottom: 40,
-    paddingHorizontal: 20,
+    paddingHorizontal: 70,
   },
   mpinInput: {
     width: 45,

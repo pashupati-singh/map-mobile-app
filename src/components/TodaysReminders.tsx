@@ -52,7 +52,6 @@ export default function TodaysReminders({ reminders }: TodaysRemindersProps) {
 
     return () => clearInterval(autoScrollInterval);
   }, [reminders.length, isAutoScrolling]);
-
   const handleScroll = (event: any) => {
     const contentOffsetX = event.nativeEvent.contentOffset.x;
     const index = Math.round(contentOffsetX / (CARD_WIDTH + CARD_SPACING));
@@ -64,7 +63,7 @@ export default function TodaysReminders({ reminders }: TodaysRemindersProps) {
   };
 
   const handleScrollEnd = () => {
-    setTimeout(() => setIsAutoScrolling(true), 2000); // Resume auto scroll after 2 seconds
+    setTimeout(() => setIsAutoScrolling(true), 2000); 
   };
 
   const getEventIcon = (eventType: string) => {
@@ -84,10 +83,9 @@ export default function TodaysReminders({ reminders }: TodaysRemindersProps) {
   if (reminders.length === 0) { 
     return (
       <View style={styles.container}>
-        {/* <Text style={styles.sectionTitle}>Important Events</Text> */}
         <View style={styles.emptyContainer}>
           <Ionicons name="calendar-outline" size={48} color="#9ca3af" />
-          <Text style={styles.emptyText}>No reminders for today</Text>
+          <Text style={styles.emptyText}>No Events for today</Text>
         </View>
       </View>
     );
@@ -254,6 +252,7 @@ const styles = StyleSheet.create({
   },
   scrollContainer: {
     paddingHorizontal: 4,
+    paddingBottom: 12,
   },
   cardContainer: {
     marginRight: CARD_SPACING,

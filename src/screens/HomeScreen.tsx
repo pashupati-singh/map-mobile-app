@@ -8,22 +8,18 @@ import {
   ScrollView,
   Alert,
   TextInput,
+  RefreshControl,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../types/navigation';
 import UserProfileSidebar from '../components/UserProfileSidebar';
 import TodaysReminders from '../components/TodaysReminders';
 import UserReminders from '../components/UserReminders';
 import DailyPlans from '../components/DailyPlans';
 import InlineSearchSuggestions from '../components/InlineSearchSuggestions';
-import DailyPlansForm from '../forms/DailyPlansForm';
-import DoctorChemistListScreen from './DoctorChemistListScreen';
-import DoctorProfileScreen from './DoctorProfileScreen';
-import ChemistProfileScreen from './ChemistProfileScreen';
-import DCRFormScreen from './DCRFormScreen';
-import ExpenseOverviewScreen from './ExpenseOverviewScreen';
-import CalendarScreen from './CalendarScreen';
-import NotificationsScreen from './NotificationsScreen';
 import { UserDataManager, UserData } from '../utils/UserDataManager';
 import { LoginManager } from '../utils/LoginManager';
 import { SetReminderForm } from '../forms';
@@ -39,71 +35,38 @@ interface HomeScreenProps {
   onLogout: () => void;
 }
 
+type HomeScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Home'>;
+
 export default function HomeScreen({ onLogout }: HomeScreenProps) {
+  const navigation = useNavigation<HomeScreenNavigationProp>();
   const [userData, setUserData] = useState<UserData | null>(null);
   const [showSidebar, setShowSidebar] = useState(false);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [showDailyPlansForm, setShowDailyPlansForm] = useState(false);
   const [activeMasterTab, setActiveMasterTab] = useState<'doctor' | 'chemist'>('doctor');
-  const [showDoctorChemistList, setShowDoctorChemistList] = useState(false);
-  const [showDoctorProfile, setShowDoctorProfile] = useState(false);
-  const [showChemistProfile, setShowChemistProfile] = useState(false);
-  const [showDCRForm, setShowDCRForm] = useState(false);
-  const [showExpenseOverview, setShowExpenseOverview] = useState(false);
-  const [selectedDoctorId, setSelectedDoctorId] = useState<string>('');
-  const [selectedChemistId, setSelectedChemistId] = useState<string>('');
-  const [listType, setListType] = useState<'doctors' | 'chemists' | 'both'>('both');
-  const [showReminderForm, setShowReminderForm] = useState(false);
   const [userReminders, setUserReminders] = useState<UserReminder[]>([]);
   const [showSearchSuggestions, setShowSearchSuggestions] = useState(false);
   const [searchSuggestions, setSearchSuggestions] = useState<SearchSuggestion[]>([]);
-  const [showCalendar, setShowCalendar] = useState(false);
-  const [showNotifications, setShowNotifications] = useState(false);
   const [todaysReminders, setTodaysReminders] = useState<any[]>([]);
   const [dailyPlans, setDailyPlans] = useState<any[]>([]);
   const [loadingHomeData, setLoadingHomeData] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [displayName, setDisplayName] = useState<string>('');
+  const [displayCompany, setDisplayCompany] = useState<string>('');
 
   const handleCreateDailyPlan = () => {
-    setShowDailyPlansForm(true);
-  };
-
-  const handleBackFromDailyPlans = () => {
-    setShowDailyPlansForm(false);
-  };
-
-  const handleBackFromDoctorChemistList = () => {
-    setShowDoctorChemistList(false);
-    setListType('both');
-  };
-
-  const handleBackFromDoctorProfile = () => {
-    setShowDoctorProfile(false);
-    setSelectedDoctorId('');
-  };
-
-  const handleBackFromChemistProfile = () => {
-    setShowChemistProfile(false);
-    setSelectedChemistId('');
+    navigation.navigate('DailyPlansForm');
   };
 
   const handleDoctorSelect = (doctorId: string) => {
-    setSelectedDoctorId(doctorId);
-    setShowDoctorProfile(true);
+    navigation.navigate('DoctorProfile', { doctorId });
   };
 
   const handleChemistSelect = (chemistId: string) => {
-    setSelectedChemistId(chemistId);
-    setShowChemistProfile(true);
+    navigation.navigate('ChemistProfile', { chemistId });
   };
 
-  const handleBackFromDCRForm = () => {
-    setShowDCRForm(false);
-  };
 
-  const handleBackFromExpenseOverview = () => {
-    setShowExpenseOverview(false);
-  };
 
   useEffect(() => {
     loadUserData();
@@ -113,17 +76,17 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
 
   const initializeSearchSuggestions = () => {
     const suggestions = createSearchSuggestions(
-      () => setShowDCRForm(false), // DCR
-      () => setShowDCRForm(true), // DCR Form
-      () => setShowDailyPlansForm(false), // Daily Plans
-      () => setShowDailyPlansForm(true), // Daily Plans Form
-      () => setShowReminderForm(true), // Reminder Form
-      () => setShowExpenseOverview(true), // Expense Overview
-      () => { setListType('doctors'); setShowDoctorChemistList(true); }, // Doctor List
-      () => { setListType('chemists'); setShowDoctorChemistList(true); }, // Chemist List
-      () => { setListType('both'); setShowDoctorChemistList(true); }, // Master List
+      () => navigation.navigate('DCR'), // DCR
+      () => navigation.navigate('DCRForm'), // DCR Form
+      () => {}, // Daily Plans (already on home)
+      () => navigation.navigate('DailyPlansForm'), // Daily Plans Form
+      () => navigation.navigate('SetReminder'), // Reminder Form
+      () => navigation.navigate('ExpenseOverview'), // Expense Overview
+      () => navigation.navigate('DoctorChemistList', { listType: 'doctors' }), // Doctor List
+      () => navigation.navigate('DoctorChemistList', { listType: 'chemists' }), // Chemist List
+      () => navigation.navigate('DoctorChemistList', { listType: 'both' }), // Master List
       () => setShowSidebar(true), // Profile
-      () => setShowCalendar(true), // Calendar
+      () => navigation.navigate('Calendar'), // Calendar
     );
     setSearchSuggestions(suggestions);
   };
@@ -139,12 +102,20 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
     }
   };
 
-  const loadHomePageData = async () => {
+  const loadHomePageData = async (isRefreshing: boolean = false) => {
     try {
-      setLoadingHomeData(true);
+      if (isRefreshing) {
+        setRefreshing(true);
+      } else {
+        setLoadingHomeData(true);
+      }
       const token = await AsyncStorage.getItem('authToken');
       if (!token) {
-        setLoadingHomeData(false);
+        if (isRefreshing) {
+          setRefreshing(false);
+        } else {
+          setLoadingHomeData(false);
+        }
         return;
       }
 
@@ -235,12 +206,15 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
           const planDate = new Date(Number(plan.planDate));
           
           // Determine status based on approval and rejection
-          let status: 'completed' | 'pending' | 'in-progress';
+          let status: 'completed' | 'pending' | 'in-progress' | 'abm-will-work';
           let statusText: string;
           
           if (plan.isRejected) {
             status = 'pending';
             statusText = 'ABM Rejected';
+          } else if (plan.isApproved && plan.workTogether && plan.isWorkTogetherConfirmed) {
+            status = 'abm-will-work';
+            statusText = 'ABM Will Work';
           } else if (plan.isApproved) {
             status = 'completed';
             statusText = 'Manager Approved';
@@ -250,6 +224,10 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
           } else if (plan.workTogether) {
             status = 'in-progress';
             statusText = 'ABM Will Work';
+          } else if (!plan.isRejected && !plan.isApproved) {
+            // Both false means ABM hasn't responded
+            status = 'pending';
+            statusText = 'ABM Not Responded';
           } else {
             status = 'pending';
             statusText = 'Pending';
@@ -307,8 +285,18 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
     } catch (error) {
       console.error('Error loading home page data:', error);
     } finally {
-      setLoadingHomeData(false);
+      if (isRefreshing) {
+        setRefreshing(false);
+      } else {
+        setLoadingHomeData(false);
+      }
     }
+  };
+
+  const onRefresh = async () => {
+    await loadUserData();
+    await loadHomePageData(true);
+    await loadUserReminders();
   };
 
   const handleSearch = (query: string) => {
@@ -324,9 +312,18 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
 
   const loadUserData = async () => {
     try {
+      // First, try to get name and company from AsyncStorage (available from login)
+      const userName = await AsyncStorage.getItem('userName');
+      const companyName = await AsyncStorage.getItem('companyName');
+      if (userName) setDisplayName(userName);
+      if (companyName) setDisplayCompany(companyName);
+
       const data = await UserDataManager.getUserData();
       if (data) {
         setUserData(data);
+        // Update display values if userData has them
+        if (data.name) setDisplayName(data.name);
+        if (data.company) setDisplayCompany(data.company);
       } else {
         // Create default user data if none exists
         const userId = await LoginManager.getStoredUserId();
@@ -438,11 +435,7 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
     { id: 'calendar', title: 'Calendar', icon: 'calendar-outline', active: false },
   ];
 
-  if (loading || loadingHomeData) {
-    return <HomeSkeleton />;
-  }
-
-  if (!userData) {
+  if (!userData && !loading) {
     return (
       <View style={styles.errorContainer}>
         <Text style={styles.errorText}>Unable to load user data</Text>
@@ -450,37 +443,9 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
     );
   }
 
-  if (showDailyPlansForm) {
-    return <DailyPlansForm onBack={handleBackFromDailyPlans} />;
-  }
-
-  if (showDoctorChemistList) {
-    return <DoctorChemistListScreen onBack={handleBackFromDoctorChemistList} onDoctorSelect={handleDoctorSelect} onChemistSelect={handleChemistSelect} listType={listType} />;
-  }
-
-  if (showDoctorProfile) {
-    return <DoctorProfileScreen doctorId={selectedDoctorId} onBack={handleBackFromDoctorProfile} />;
-  }
-
-  if (showChemistProfile) {
-    return <ChemistProfileScreen chemistId={selectedChemistId} onBack={handleBackFromChemistProfile} />;
-  }
-
-  if (showDCRForm) {
-    return <DCRFormScreen onBack={handleBackFromDCRForm} />;
-  }
-
-  if (showExpenseOverview) {
-    return <ExpenseOverviewScreen onBack={handleBackFromExpenseOverview} />;
-  }
-
   const handleReminderAction = () => {
     console.log('Reminder action');
-    setShowReminderForm(true);
-  };
-
-  const handleBackFromReminderForm = () => {
-    setShowReminderForm(false);
+    navigation.navigate('SetReminder');
   };
 
   const handleReminderSubmit = async (data: any) => {
@@ -528,10 +493,10 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
           message: data.message,
         });
         
-        setShowReminderForm(false);
         await loadUserReminders(); // Refresh the reminders list
         await loadHomePageData(); // Refresh home page data to get updated reminders from API
         Alert.alert('Success', response.createRemindar.message || 'Reminder set successfully!');
+        navigation.goBack();
       } else {
         Alert.alert('Error', response.createRemindar.message || 'Failed to create reminder.');
       }
@@ -541,17 +506,6 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
     }
   };
 
-  if (showReminderForm) {
-    return <SetReminderForm onBack={handleBackFromReminderForm} onSubmit={handleReminderSubmit} />;
-  }
-
-  if (showCalendar) {
-    return <CalendarScreen onBack={() => setShowCalendar(false)} />;
-  }
-
-  if (showNotifications) {
-    return <NotificationsScreen onBack={() => setShowNotifications(false)} />;
-  }
 
   return (
     <View style={styles.container}>
@@ -565,7 +519,7 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
             style={styles.profileButton}
             onPress={() => setShowSidebar(true)}
           >
-            {userData.profileImage ? (
+            {userData?.profileImage ? (
               <Image
                 source={{ uri: userData.profileImage }}
                 style={styles.headerProfileImage}
@@ -579,15 +533,15 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
 
           <View style={styles.welcomeSection}>
             <Text style={styles.welcomeText}>Welcome back!</Text>
-            <Text style={styles.userNameText}>{userData.name}</Text>
-            {!!userData.company && (
-              <Text style={styles.companyText}>{userData.company}</Text>
+            <Text style={styles.userNameText}>{displayName || userData?.name || ''}</Text>
+            {(displayCompany || userData?.company) && (
+              <Text style={styles.companyText}>{displayCompany || userData?.company || ''}</Text>
             )}
           </View>
 
           <TouchableOpacity 
             style={styles.notificationButton}
-            onPress={() => setShowNotifications(true)}
+            onPress={() => navigation.navigate('Notifications')}
           >
             <Ionicons name="notifications-outline" size={24} color="white" />
             <View style={styles.notificationBadge}>
@@ -619,18 +573,32 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
         onSuggestionPress={handleSuggestionPress}
       />
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* User Created Reminders */}
-        <UserReminders 
-          reminders={userReminders} 
-          onReminderUpdate={loadUserReminders}
-        />
+      {loadingHomeData ? (
+        <HomeSkeleton />
+      ) : (
+        <ScrollView 
+          style={styles.content} 
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={['#0f766e']}
+              tintColor="#0f766e"
+            />
+          }
+        >
+          {/* User Created Reminders */}
+          <UserReminders 
+            reminders={userReminders} 
+            onReminderUpdate={loadUserReminders}
+          />
 
-        {/* Today's Reminders (Doctor/Chemist Events) */}
-        <TodaysReminders reminders={todaysReminders} />
+          {/* Today's Reminders (Doctor/Chemist Events) */}
+          <TodaysReminders reminders={todaysReminders} />
 
-        {/* Daily Plans */}
-        <DailyPlans plans={dailyPlans} onCreatePlan={handleCreateDailyPlan} />
+          {/* Daily Plans */}
+          <DailyPlans plans={dailyPlans} onCreatePlan={handleCreateDailyPlan} />
 
         {/* Quick Action */}
         <View style={styles.serviceSection}>
@@ -685,10 +653,7 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
             <View style={styles.masterContent}>
               <TouchableOpacity 
                 style={styles.masterActionButton}
-                onPress={() => {
-                  setListType('doctors');
-                  setShowDoctorChemistList(true);
-                }}
+                onPress={() => navigation.navigate('DoctorChemistList', { listType: 'doctors' })}
               >
                 <View style={styles.masterActionContent}>
                   <Ionicons name="person-outline" size={24} color="#0f766e" />
@@ -702,10 +667,7 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
 
               <TouchableOpacity 
                 style={styles.masterActionButton}
-                onPress={() => {
-                  setListType('chemists');
-                  setShowDoctorChemistList(true);
-                }}
+                onPress={() => navigation.navigate('DoctorChemistList', { listType: 'chemists' })}
               >
                 <View style={styles.masterActionContent}>
                   <Ionicons name="medical-outline" size={24} color="#0f766e" />
@@ -735,7 +697,7 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
               </TouchableOpacity>
               <TouchableOpacity 
                 style={styles.serviceCard}
-                onPress={() => setShowDCRForm(true)}
+                onPress={() => navigation.navigate('DCRForm')}
               >
                 <View style={styles.serviceIconContainer}>
                   <View style={styles.serviceIcon}>
@@ -750,7 +712,7 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
                     <Ionicons name="alarm-outline" size={20} color="#0f766e" />
                   </View>
                 </View>
-                <Text style={styles.serviceTitle}  >Set Reminder</Text>
+                <Text style={styles.serviceTitle}  >Reminder</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.serviceCard}>
                 <View style={styles.serviceIconContainer}>
@@ -805,7 +767,8 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
           </View>
         </View>
 
-      </ScrollView>
+        </ScrollView>
+      )}
 
       {/* Bottom Navigation */}
       <View style={styles.bottomNav}>
@@ -815,9 +778,9 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
             style={[styles.navItem, item.active && styles.activeNavItem]}
             onPress={() => {
               if (item.id === 'expense') {
-                setShowExpenseOverview(true);
+                navigation.navigate('ExpenseOverview');
               } else if (item.id === 'calendar') {
-                setShowCalendar(true);
+                navigation.navigate('Calendar');
               } else {
                 Alert.alert(item.title, `${item.title} functionality will be implemented`);
               }
@@ -839,7 +802,7 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
       <UserProfileSidebar
         visible={showSidebar}
         onClose={() => setShowSidebar(false)}
-        userData={userData}
+        userData={userData || { id: '', name: displayName, email: '', company: displayCompany, role: 'MR', isEmailVerified: false, hasMPIN: false }}
         onLogout={handleLogout}
         onChangePassword={handleChangePassword}
         onVerifyEmail={handleVerifyEmail}
@@ -982,14 +945,16 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8fafc',
     borderRadius: 16,
     padding: 20,
+    borderBottomWidth: 2,
+    borderBottomColor: '#e5e7eb',
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 2,
+      height: 4,
     },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 4,
   },
   serviceGrid: {
     flexDirection: 'row',
@@ -1047,14 +1012,16 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8fafc',
     borderRadius: 16,
     padding: 20,
+    borderBottomWidth: 2,
+    borderBottomColor: '#e5e7eb',
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 2,
+      height: 4,
     },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 4,
   },
   masterTabContainer: {
     flexDirection: 'row',
@@ -1199,14 +1166,16 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8fafc',
     borderRadius: 16,
     padding: 20,
+    borderBottomWidth: 2,
+    borderBottomColor: '#e5e7eb',
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 2,
+      height: 4,
     },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 4,
   },
   dcrItem: {
     flexDirection: 'row',
@@ -1239,14 +1208,16 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8fafc',
     borderRadius: 16,
     padding: 20,
+    borderBottomWidth: 2,
+    borderBottomColor: '#e5e7eb',
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 2,
+      height: 4,
     },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 4,
   },
   reportItem: {
     flexDirection: 'row',

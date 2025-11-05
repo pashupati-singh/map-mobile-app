@@ -11,11 +11,12 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../types/navigation';
 import { ReminderManager, UserReminder } from '../utils/ReminderManager';
 
-interface CalendarScreenProps {
-  onBack: () => void;
-}
+type CalendarScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Calendar'>;
 
 interface CalendarData {
   date: Date;
@@ -28,7 +29,8 @@ interface CalendarData {
 
 const { width } = Dimensions.get('window');
 
-export default function CalendarScreen({ onBack }: CalendarScreenProps) {
+export default function CalendarScreen() {
+  const navigation = useNavigation<CalendarScreenNavigationProp>();
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [currentMonth, setCurrentMonth] = useState(() => {
     const today = new Date();
@@ -444,7 +446,7 @@ export default function CalendarScreen({ onBack }: CalendarScreenProps) {
         style={styles.header}
       >
         <View style={styles.headerContent}>
-          <TouchableOpacity onPress={onBack} style={styles.backButton}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
             <Ionicons name="arrow-back" size={24} color="white" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Calendars</Text>

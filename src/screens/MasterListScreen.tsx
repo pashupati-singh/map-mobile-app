@@ -8,12 +8,14 @@ import {
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../types/navigation';
 
-interface MasterListScreenProps {
-  onBack: () => void;
-}
+type MasterListScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'MasterList'>;
 
-export default function MasterListScreen({ onBack }: MasterListScreenProps) {
+export default function MasterListScreen() {
+  const navigation = useNavigation<MasterListScreenNavigationProp>();
   const doctorOptions = [
     { id: '1', title: 'Add New Doctor', icon: 'person-add-outline' },
     { id: '2', title: 'View All Doctors', icon: 'people-outline' },
@@ -36,7 +38,7 @@ export default function MasterListScreen({ onBack }: MasterListScreenProps) {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={onBack}>
+        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={24} color="#0f766e" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Master List</Text>

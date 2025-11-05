@@ -8,14 +8,19 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  Keyboard,
   ScrollView,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { gqlFetch } from '../api/graphql';
-import { LOGIN_MUTATION } from '../graphql/mutations/auth';
+import { LOGIN_MUTATION, RESEND_OTP_MUTATION } from '../graphql/mutations/auth';
 import { UserDataManager } from '../utils/UserDataManager';
 import { LoginManager } from '../utils/LoginManager';
+import EmailVerificationScreen from './EmailVerificationScreen';
+import PhoneVerificationScreen from './PhoneVerificationScreen';
+import EnterCodeScreen from './EnterCodeScreen';
 
 interface EmailLoginScreenProps {
   onLoginSuccess: (userId: string) => void;
@@ -25,8 +30,13 @@ interface EmailLoginScreenProps {
 export default function EmailLoginScreen({ onLoginSuccess, onSwitchToMPIN }: EmailLoginScreenProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
+  const [showEmailVerification, setShowEmailVerification] = useState(false);
+  const [showPhoneVerification, setShowPhoneVerification] = useState(false);
+  const [showEnterCode, setShowEnterCode] = useState(false);
+  const [contactInfo, setContactInfo] = useState<{ email?: string; phone?: string }>({});
 
   const validateEmail = (email: string): boolean => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -47,6 +57,67 @@ export default function EmailLoginScreen({ onLoginSuccess, onSwitchToMPIN }: Ema
       return { isValid: false, message: 'Password must contain at least one special character' };
     }
     return { isValid: true };
+  };
+
+  const handleEmailCodeSent = (emailAddress: string) => {
+    setContactInfo({ email: emailAddress });
+    setShowEmailVerification(false);
+    setShowEnterCode(true);
+  };
+
+  const handlePhoneCodeSent = (phone: string) => {
+    setContactInfo({ phone: phone });
+    setShowPhoneVerification(false);
+    setShowEnterCode(true);
+  };
+
+  const handleCodeVerified = (code: string) => {
+    // Handle code verification - can be enhanced later
+    setShowEnterCode(false);
+    Alert.alert('Success', 'Code verified successfully!');
+  };
+
+  const handleResendCode = async () => {
+    try {
+      type ResendOtpResponse = {
+        resendOtp: {
+          code: number;
+        };
+      };
+
+      const variables: { type: string; email?: string; phone?: string } = contactInfo.email
+        ? { type: 'EMAIL', email: contactInfo.email }
+        : { type: 'PHONE', phone: contactInfo.phone };
+
+      const data = await gqlFetch<ResendOtpResponse>(RESEND_OTP_MUTATION, variables, undefined, true);
+      const result = data.resendOtp;
+
+      if (result.code === 200) {
+        const contact = contactInfo.email || contactInfo.phone || 'your contact';
+        Alert.alert('Code Sent', `A new verification code has been sent to ${contact}`);
+      } else {
+        Alert.alert('Error', 'Failed to resend verification code. Please try again.');
+      }
+    } catch (error: any) {
+      Alert.alert('Error', error?.message || 'Failed to resend verification code. Please try again.');
+    }
+  };
+
+  const handleBackFromEnterCode = () => {
+    setShowEnterCode(false);
+    if (contactInfo.email) {
+      setShowEmailVerification(true);
+    } else if (contactInfo.phone) {
+      setShowPhoneVerification(true);
+    }
+  };
+
+  const handleBackFromEmailVerification = () => {
+    setShowEmailVerification(false);
+  };
+
+  const handleBackFromPhoneVerification = () => {
+    setShowPhoneVerification(false);
   };
 
   const handleLogin = async () => {
@@ -83,7 +154,6 @@ export default function EmailLoginScreen({ onLoginSuccess, onSwitchToMPIN }: Ema
 
       const data = await gqlFetch<LoginResponse>(LOGIN_MUTATION, { email, password }, undefined, true);
       const result = data.loginUser;
-
       if (result.success && result.code === 200 && result.user && result.token) {
         const userId = String(result.user.id);
         const name = result.user.name || '';
@@ -114,14 +184,54 @@ export default function EmailLoginScreen({ onLoginSuccess, onSwitchToMPIN }: Ema
         onLoginSuccess(userId);
         return;
       }
+      Alert.alert('Login Failed', result.message || 'Please verify your email or phone number and try again.');
 
-      Alert.alert('Login Failed', result.message || 'Please check your credentials and try again.');
+      if(result.code === 400){
+        if(result.message === 'Please verify your email before logging in'){
+          setShowEmailVerification(true);
+          return;
+        }else if(result.message === 'Please verify your phone number before logging in'){
+          setShowPhoneVerification(true);
+          return;
+        }
+      }
     } catch (error: any) {
       Alert.alert('Error', error?.message || 'Login failed. Please try again.');
     } finally {
       setIsLoading(false);
     }
   };
+
+  if (showEnterCode) {
+    return (
+      <EnterCodeScreen
+        email={contactInfo.email}
+        phone={contactInfo.phone}
+        onCodeVerified={handleCodeVerified}
+        onBack={handleBackFromEnterCode}
+        onResendCode={handleResendCode}
+      />
+    );
+  }
+
+  if (showEmailVerification) {
+    return (
+      <EmailVerificationScreen
+        onCodeSent={handleEmailCodeSent}
+        onBack={handleBackFromEmailVerification}
+        initialEmail={email}
+      />
+    );
+  }
+
+  if (showPhoneVerification) {
+    return (
+      <PhoneVerificationScreen
+        onCodeSent={handlePhoneCodeSent}
+        onBack={handleBackFromPhoneVerification}
+      />
+    );
+  }
 
   return (
     <LinearGradient
@@ -132,7 +242,7 @@ export default function EmailLoginScreen({ onLoginSuccess, onSwitchToMPIN }: Ema
         style={styles.keyboardContainer} 
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <ScrollView contentContainerStyle={styles.scrollContainer}>
+        <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="handled">
           <View style={styles.iconContainer}>
             <View style={styles.iconCircle}>
               <View style={styles.emailIcon}>
@@ -168,18 +278,31 @@ export default function EmailLoginScreen({ onLoginSuccess, onSwitchToMPIN }: Ema
         </View>
         <View style={styles.inputContainer}>
           <Text style={styles.label}>Password</Text>
-          <TextInput
-            style={[styles.input, errors.password && styles.inputError]}
-            placeholder="Enter your password"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-          />
+          <View style={styles.passwordInputWrapper}>
+            <TextInput
+              style={[styles.input, styles.passwordInput, errors.password && styles.inputError]}
+              placeholder="Enter your password"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry={!showPassword}
+            />
+            <TouchableOpacity
+              style={styles.eyeIcon}
+              onPress={() => setShowPassword(!showPassword)}
+              activeOpacity={0.7}
+            >
+              <Ionicons
+                name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                size={24}
+                color="#6b7280"
+              />
+            </TouchableOpacity>
+          </View>
           {errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
         </View>
         <TouchableOpacity
           style={[styles.loginButton, isLoading && styles.loginButtonDisabled]}
-          onPress={handleLogin}
+          onPress={ ()=>{Keyboard.dismiss();handleLogin()}}
           disabled={isLoading}
         >
           <Text style={styles.loginButtonText}>
@@ -308,6 +431,18 @@ const styles = StyleSheet.create({
     padding: 16,
     fontSize: 16,
     backgroundColor: 'white',
+  },
+  passwordInputWrapper: {
+    position: 'relative',
+  },
+  passwordInput: {
+    paddingRight: 50,
+  },
+  eyeIcon: {
+    position: 'absolute',
+    right: 12,
+    top: 12,
+    padding: 4,
   },
   inputError: {
     borderColor: '#ef4444',
