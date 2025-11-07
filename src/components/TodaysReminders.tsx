@@ -8,7 +8,6 @@ import {
   TouchableOpacity,
   Image,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 
 interface DoctorReminder {
@@ -70,14 +69,8 @@ export default function TodaysReminders({ reminders }: TodaysRemindersProps) {
     return eventType === 'birthday' ? 'gift-outline' : 'heart-outline';
   };
 
-  const getEventColor = (eventType: string) => {
-    return eventType === 'birthday' ? '#f59e0b' : '#ef4444';
-  };
-
-  const getEventGradient = (eventType: string) => {
-    return eventType === 'birthday' 
-      ? ['#fbbf24', '#f59e0b'] 
-      : ['#f87171', '#ef4444'];
+  const getEventIconColor = (eventType: string) => {
+    return eventType === 'birthday' ? '#0f766e' : '#0f766e';
   };
 
   if (reminders.length === 0) { 
@@ -118,25 +111,19 @@ export default function TodaysReminders({ reminders }: TodaysRemindersProps) {
             style={[styles.cardContainer, { width: CARD_WIDTH }]}
             activeOpacity={0.9}
           >
-            <LinearGradient
-              colors={getEventGradient(reminder.eventType) as [string, string]}
-              style={styles.card}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-            >
+            <View style={styles.card}>
               <View style={styles.cardHeader}>
                 <View style={styles.eventIconContainer}>
                   <Ionicons
                     name={getEventIcon(reminder.eventType) as any}
                     size={24}
-                    color="white"
+                    color={getEventIconColor(reminder.eventType)}
                   />
                 </View>
                 <View style={styles.eventTypeContainer}>
                   <Text style={styles.eventTypeText}>
                     {reminder.eventType === 'birthday' ? 'Birthday' : 'Anniversary'}
                   </Text>
-                  <Text style={styles.eventDateText}>{reminder.eventDate}</Text>
                 </View>
               </View>
 
@@ -149,7 +136,7 @@ export default function TodaysReminders({ reminders }: TodaysRemindersProps) {
                     />
                   ) : (
                     <View style={styles.defaultProfileImage}>
-                      <Ionicons name="person" size={32} color="white" />
+                      <Ionicons name="person" size={32} color="#0f766e" />
                     </View>
                   )}
                   <View style={styles.doctorDetails}>
@@ -166,7 +153,7 @@ export default function TodaysReminders({ reminders }: TodaysRemindersProps) {
 
                 <View style={styles.contactSection}>
                   <View style={styles.phoneContainer}>
-                    <Ionicons name="call-outline" size={16} color="white" />
+                    <Ionicons name="call-outline" size={16} color="#0f766e" />
                     <Text style={styles.phoneText}>{reminder.phoneNumber}</Text>
                   </View>
                 </View>
@@ -177,7 +164,7 @@ export default function TodaysReminders({ reminders }: TodaysRemindersProps) {
                   Today is {reminder.eventType === 'birthday' ? 'their birthday' : 'their anniversary'}!
                 </Text>
               </View>
-            </LinearGradient>
+            </View>
           </TouchableOpacity>
         ))}
       </ScrollView>
@@ -258,17 +245,18 @@ const styles = StyleSheet.create({
     marginRight: CARD_SPACING,
   },
   card: {
-    borderRadius: 20,
-    padding: 20,
+    backgroundColor: '#fff6ef',
+    borderRadius: 16,
+    padding: 14,
     minHeight: 200,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 8,
+      height: 2,
     },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    elevation: 12,
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 4,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -279,7 +267,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: 'rgba(15, 118, 110, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
@@ -290,7 +278,7 @@ const styles = StyleSheet.create({
   eventTypeText: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: 'white',
+    color: '#0f766e',
     marginBottom: 2,
   },
   eventDateText: {
@@ -311,18 +299,18 @@ const styles = StyleSheet.create({
     borderRadius: 30,
     marginRight: 16,
     borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+    borderColor: 'rgba(15, 118, 110, 0.2)',
   },
   defaultProfileImage: {
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: 'rgba(15, 118, 110, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 16,
     borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+    borderColor: 'rgba(15, 118, 110, 0.2)',
   },
   doctorDetails: {
     flex: 1,
@@ -330,7 +318,7 @@ const styles = StyleSheet.create({
   doctorName: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: 'white',
+    color: '#1f2937',
     marginBottom: 8,
   },
   titlesContainer: {
@@ -339,14 +327,14 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   titleChip: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: 'rgba(15, 118, 110, 0.15)',
     borderRadius: 12,
     paddingHorizontal: 8,
     paddingVertical: 4,
   },
   titleText: {
     fontSize: 11,
-    color: 'white',
+    color: '#0f766e',
     fontWeight: '600',
   },
   contactSection: {
@@ -355,7 +343,7 @@ const styles = StyleSheet.create({
   phoneContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    backgroundColor: 'rgba(15, 118, 110, 0.1)',
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 6,
@@ -363,18 +351,18 @@ const styles = StyleSheet.create({
   },
   phoneText: {
     fontSize: 14,
-    color: 'white',
+    color: '#0f766e',
     marginLeft: 6,
     fontWeight: '500',
   },
   cardFooter: {
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.2)',
+    borderTopColor: 'rgba(15, 118, 110, 0.2)',
     paddingTop: 12,
   },
   todayText: {
     fontSize: 14,
-    color: 'white',
+    color: '#0f766e',
     fontWeight: '600',
     textAlign: 'center',
     fontStyle: 'italic',

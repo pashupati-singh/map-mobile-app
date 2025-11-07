@@ -15,7 +15,7 @@ import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
 import SimpleSearchComponent from '../components/SimpleSearchComponent';
-import Loader from '../components/Loader';
+import CustomLoader from '../components/CustomLoader';
 import { gqlFetch } from '../api/graphql';
 import { CHEMISTS_QUERY } from '../graphql/query/chemists';
 import { DOCTORS_QUERY } from '../graphql/query/doctors';
@@ -322,7 +322,7 @@ export default function DoctorChemistListScreen() {
 
       {loading ? (
         <View style={styles.loadingContainer}>
-          <Loader />
+          <CustomLoader size={48} color="#0f766e" />
         </View>
       ) : listType === 'doctors' ? (
         <FlatList
@@ -515,7 +515,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 40,
   },
   loadingText: {
     marginTop: 12,

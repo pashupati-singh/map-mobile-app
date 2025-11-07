@@ -18,7 +18,6 @@ export default function HomeSkeleton() {
         <View style={styles.skeletonItem} />
       </View>
 
-      {/* Today's Reminders Skeleton */}
       <View style={styles.skeletonCard}>
         <View style={styles.skeletonHeader}>
           <View style={[styles.skeletonText, { width: 180, height: 20 }]} />

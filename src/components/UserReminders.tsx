@@ -119,9 +119,6 @@ export default function UserReminders({ reminders, onReminderUpdate }: UserRemin
     <View style={styles.container}>
       <View style={styles.headerContainer}>
         <Text style={styles.sectionTitle}>Today's Reminders</Text>
-        {/* <View style={styles.reminderCountBadge}>
-          <Text style={styles.reminderCountText}>{reminders.length}</Text>
-        </View> */}
       </View>
 
       <ScrollView
@@ -147,33 +144,13 @@ export default function UserReminders({ reminders, onReminderUpdate }: UserRemin
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
             >
-              <View style={styles.cardHeader}>
-                <View style={styles.reminderIconContainer}>
-                  <Ionicons name="alarm-outline" size={24} color="white" />
-                </View>
-                <View style={styles.reminderInfo}>
-                  <Text style={styles.reminderDateText}>{formatDate(reminder.date)}</Text>
-                  <Text style={styles.reminderTimeText}>{formatTime(reminder.date)}</Text>
-                </View>
-                {/* <View style={styles.actionButtons}>
-                  <TouchableOpacity
-                    style={styles.actionButton}
-                    onPress={() => handleMarkCompleted(reminder.id)}
-                  >
-                    <Ionicons name="checkmark-outline" size={20} color="white" />
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.actionButton}
-                    onPress={() => handleDeleteReminder(reminder.id)}
-                  >
-                    <Ionicons name="trash-outline" size={20} color="white" />
-                  </TouchableOpacity>
-                </View> */}
-              </View>
-
               <View style={styles.reminderContent}>
-                <Text style={styles.reminderHeading}>{reminder.heading}</Text>
-                <Text style={styles.reminderMessage}>{reminder.message}</Text>
+                <Text style={styles.reminderHeading} numberOfLines={1} ellipsizeMode="tail">
+                  {reminder.heading}
+                </Text>
+                <Text style={styles.reminderMessage} numberOfLines={4} ellipsizeMode="tail">
+                  {reminder.message}
+                </Text>
               </View>
 
               <View style={styles.cardFooter}>
@@ -261,22 +238,26 @@ const styles = StyleSheet.create({
   },
   scrollContainer: {
     paddingHorizontal: 4,
+    paddingVertical: 4,
   },
   cardContainer: {
     marginRight: CARD_SPACING,
+    marginBottom: 4,
   },
   card: {
-    borderRadius: 20,
-    padding: 20,
-    minHeight: 200,
+    borderRadius: 16,
+    padding: 14,
+    height: 200,
+    justifyContent: 'space-between',
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 8,
+      height: 2,
     },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    elevation: 12,
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 4,
+    overflow: 'visible',
   },
   cardHeader: {
     flexDirection: 'row',
@@ -318,8 +299,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   reminderContent: {
-    flex: 1,
+    flexGrow: 1,
     marginBottom: 16,
+    overflow: 'hidden',
   },
   reminderHeading: {
     fontSize: 18,

@@ -79,10 +79,7 @@ export default function DailyPlans({ plans, onCreatePlan }: DailyPlansProps) {
       <View style={styles.container}>
         <View style={styles.headerContainer}>
           <Text style={styles.sectionTitle}>Daily Plans</Text>
-          <View style={styles.statusIndicator}>
-            <View style={styles.statusDot} />
-            <Text style={styles.statusText}>No Plans</Text>
-          </View>
+          
         </View>
 
         <LinearGradient

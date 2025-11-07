@@ -31,13 +31,16 @@ export const HOME_PAGE_QUERY = `
           message
         }
         dailyplans {
+          id
           isApproved
           workTogether
           isWorkTogetherConfirmed
           isRejected
           planDate
           notes
+          abmId
           doctors {
+            id
             doctorCompanyId
             dcr
             DoctorCompany {

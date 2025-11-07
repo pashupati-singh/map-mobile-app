@@ -53,6 +53,9 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
   const [refreshing, setRefreshing] = useState(false);
   const [displayName, setDisplayName] = useState<string>('');
   const [displayCompany, setDisplayCompany] = useState<string>('');
+  const [pressedServiceId, setPressedServiceId] = useState<string | null>(null);
+  const [pressedDcrId, setPressedDcrId] = useState<string | null>(null);
+  const [pressedReportsId, setPressedReportsId] = useState<string | null>(null);
 
   const handleCreateDailyPlan = () => {
     navigation.navigate('DailyPlansForm');
@@ -71,7 +74,7 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
   useEffect(() => {
     loadUserData();
     initializeSearchSuggestions();
-    loadHomePageData(); // This also loads user reminders from API
+    loadHomePageData(); 
   }, []);
 
   const initializeSearchSuggestions = () => {
@@ -93,10 +96,9 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
 
   const loadUserReminders = async () => {
     try {
-      const localReminders = await ReminderManager.getTodaysReminders();
-      // Preserve API reminders (those with id starting with 'api-reminder-')
-      const apiReminders = userReminders.filter(r => r.id.startsWith('api-reminder-'));
-      setUserReminders([...localReminders, ...apiReminders]);
+      // Don't load from local storage - API is the source of truth
+      // This prevents duplicates when reminders are created via API
+      // Reminders are loaded via loadHomePageData() which gets them from the API
     } catch (error) {
       console.error('Error loading user reminders:', error);
     }
@@ -184,7 +186,8 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
         });
         setTodaysReminders(transformedEvents);
 
-        // Transform remindars to userReminders format and merge with existing
+        // Transform remindars to userReminders format
+        // Use only API reminders as the source of truth to avoid duplicates
         const transformedRemindars: UserReminder[] = remindars.map((reminder, index) => ({
           id: `api-reminder-${index}`,
           heading: reminder.heading,
@@ -194,9 +197,8 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
           isCompleted: false,
         }));
         
-        // Load local reminders first, then add API reminders
-        const localReminders = await ReminderManager.getTodaysReminders();
-        setUserReminders([...localReminders, ...transformedRemindars]);
+        // Use only API reminders - don't merge with local storage to avoid duplicates
+        setUserReminders(transformedRemindars);
 
         // Transform dailyplans: create one card for each doctor and chemist
         const transformedPlans: any[] = [];
@@ -381,49 +383,111 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
       id: 'emergency',
       title: 'Emergency',
       icon: 'medical-outline',
-      color: '#3b82f6',
+      color: '#ef4444', // Red for emergency
     },
     {
       id: 'doctor',
       title: 'Doctor',
       icon: 'medical-outline',
-      color: '#3b82f6',
+      color: '#0f766e', // Teal for doctor (theme color)
     },
     {
       id: 'hospital',
       title: 'Hospital',
       icon: 'business-outline',
-      color: '#3b82f6',
+      color: '#3b82f6', // Blue for hospital
     },
     {
       id: 'pharmacy',
       title: 'Pharmacy',
       icon: 'medical-outline',
-      color: '#3b82f6',
+      color: '#10b981', // Green for pharmacy
     },
     {
       id: 'report',
       title: 'Report',
       icon: 'document-outline',
-      color: '#3b82f6',
+      color: '#f59e0b', // Amber for report
     },
     {
       id: 'appointment',
       title: 'Appointment',
       icon: 'calendar-outline',
-      color: '#3b82f6',
+      color: '#8b5cf6', // Purple for appointment
     },
     {
       id: 'prescription',
       title: 'Prescription',
       icon: 'receipt-outline',
-      color: '#3b82f6',
+      color: '#ec4899', // Pink for prescription
     },
     {
       id: 'more',
       title: 'More',
       icon: 'ellipsis-horizontal-outline',
-      color: '#3b82f6',
+      color: '#6b7280', // Gray for more
+    },
+  ];
+
+  const dcrCategories = [
+    {
+      id: 'daily-plan',
+      title: 'Daily Plan',
+      icon: 'calendar-outline',
+      color: '#0f766e', // Teal for daily plan (theme color)
+      onPress: () => navigation.navigate('DailyPlansForm'),
+    },
+    {
+      id: 'call-report',
+      title: 'Call Report',
+      icon: 'call-outline',
+      color: '#3b82f6', // Blue for call report
+      onPress: () => navigation.navigate('DCR'),
+    },
+    {
+      id: 'reminder',
+      title: 'Reminder',
+      icon: 'alarm-outline',
+      color: '#f59e0b', // Amber for reminder
+      onPress: () => handleReminderAction(),
+    },
+    {
+      id: 'visit-plan',
+      title: 'Visit Plan',
+      icon: 'location-outline',
+      color: '#10b981', // Green for visit plan
+      onPress: () => {},
+    },
+  ];
+
+  const reportsCategories = [
+    {
+      id: 'call-report',
+      title: 'Call Report',
+      icon: 'call-outline',
+      color: '#3b82f6', // Blue for call report
+      onPress: () => navigation.navigate('DCR'),
+    },
+    {
+      id: 'daily-plan-report',
+      title: 'Daily Plan Report',
+      icon: 'document-outline',
+      color: '#f59e0b', // Amber for daily plan report
+      onPress: () => {},
+    },
+    {
+      id: 'view-all',
+      title: 'View All',
+      icon: 'eye-outline',
+      color: '#10b981', // Green for view all
+      onPress: () => {},
+    },
+    {
+      id: 'analytics',
+      title: 'Analytics',
+      icon: 'analytics-outline',
+      color: '#8b5cf6', // Purple for analytics
+      onPress: () => {},
     },
   ];
 
@@ -444,8 +508,7 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
   }
 
   const handleReminderAction = () => {
-    console.log('Reminder action');
-    navigation.navigate('SetReminder');
+    navigation.navigate('SetReminder', { onSubmit: handleReminderSubmit });
   };
 
   const handleReminderSubmit = async (data: any) => {
@@ -455,8 +518,6 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
         Alert.alert('Error', 'Authentication token not found. Please login again.');
         return;
       }
-
-      // Format date as dd/mm/yyyy
       const formatDateForAPI = (date: Date): string => {
         const day = date.getDate().toString().padStart(2, '0');
         const month = (date.getMonth() + 1).toString().padStart(2, '0');
@@ -464,7 +525,6 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
         return `${day}/${month}/${year}`;
       };
 
-      // Call the mutation
       type CreateRemindarResponse = {
         createRemindar: {
           code: number;
@@ -486,14 +546,8 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
       );
 
       if (response.createRemindar.success) {
-        // Also save locally for offline access
-        await ReminderManager.saveReminder({
-          date: data.date,
-          heading: data.heading,
-          message: data.message,
-        });
-        
-        await loadUserReminders(); // Refresh the reminders list
+        // Don't save to local storage - API is the source of truth
+        // Just refresh from API to get the updated list including the new reminder
         await loadHomePageData(); // Refresh home page data to get updated reminders from API
         Alert.alert('Success', response.createRemindar.message || 'Reminder set successfully!');
         navigation.goBack();
@@ -605,22 +659,32 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
           <Text style={styles.sectionTitle}>Quick Action</Text>
           <View style={styles.serviceContainer}>
             <View style={styles.serviceGrid}>
-              {serviceCategories.map((service) => (
-                <TouchableOpacity
-                  key={service.id}
-                  style={styles.serviceCard}
-                  onPress={() => {
-                    Alert.alert(service.title, `${service.title} functionality will be implemented`);
-                  }}
-                >
-                  <View style={styles.serviceIconContainer}>
-                    <View style={styles.serviceIcon}>
-                      <Ionicons name={service.icon as any} size={20} color="#0f766e" />
+              {serviceCategories.map((service) => {
+                const isPressed = pressedServiceId === service.id;
+                const iconBackgroundColor = isPressed ? '#0f766e' : service.color;
+                const iconColor = isPressed ? 'white' : 'white';
+                
+                return (
+                  <TouchableOpacity
+                    key={service.id}
+                    style={styles.serviceCard}
+                    onPressIn={() => setPressedServiceId(service.id)}
+                    onPressOut={() => setPressedServiceId(null)}
+                    onPress={() => {
+                      setPressedServiceId(null);
+                      Alert.alert(service.title, `${service.title} functionality will be implemented`);
+                    }}
+                    activeOpacity={1}
+                  >
+                    <View style={styles.serviceIconContainer}>
+                      <View style={[styles.serviceIcon, { backgroundColor: iconBackgroundColor }]}>
+                        <Ionicons name={service.icon as any} size={20} color={iconColor} />
+                      </View>
                     </View>
-                  </View>
-                  <Text style={styles.serviceTitle}>{service.title}</Text>
-                </TouchableOpacity>
-              ))}
+                    <Text style={styles.serviceTitle}>{service.title}</Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           </View>
         </View>
@@ -687,41 +751,32 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
           <Text style={styles.sectionTitle}>DCR</Text>
           <View style={styles.dcrContainer}>
             <View style={styles.serviceGrid}>
-              <TouchableOpacity style={styles.serviceCard}>
-                <View style={styles.serviceIconContainer}>
-                  <View style={styles.serviceIcon}>
-                    <Ionicons name="calendar-outline" size={20} color="#0f766e" />
-                  </View>
-                </View>
-                <Text style={styles.serviceTitle}>Daily Plan</Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={styles.serviceCard}
-                onPress={() => navigation.navigate('DCRForm')}
-              >
-                <View style={styles.serviceIconContainer}>
-                  <View style={styles.serviceIcon}>
-                    <Ionicons name="call-outline" size={20} color="#0f766e" />
-                  </View>
-                </View>
-                <Text style={styles.serviceTitle}>Call Report</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.serviceCard} onPress={() => handleReminderAction()}>
-                <View style={styles.serviceIconContainer}>
-                  <View style={styles.serviceIcon}>
-                    <Ionicons name="alarm-outline" size={20} color="#0f766e" />
-                  </View>
-                </View>
-                <Text style={styles.serviceTitle}  >Reminder</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.serviceCard}>
-                <View style={styles.serviceIconContainer}>
-                  <View style={styles.serviceIcon}>
-                    <Ionicons name="location-outline" size={20} color="#0f766e" />
-                  </View>
-                </View>
-                <Text style={styles.serviceTitle}>Visit Plan</Text>
-              </TouchableOpacity>
+              {dcrCategories.map((dcr) => {
+                const isPressed = pressedDcrId === dcr.id;
+                const iconBackgroundColor = isPressed ? '#0f766e' : dcr.color;
+                const iconColor = isPressed ? 'white' : 'white';
+                
+                return (
+                  <TouchableOpacity
+                    key={dcr.id}
+                    style={styles.serviceCard}
+                    onPressIn={() => setPressedDcrId(dcr.id)}
+                    onPressOut={() => setPressedDcrId(null)}
+                    onPress={() => {
+                      setPressedDcrId(null);
+                      dcr.onPress();
+                    }}
+                    activeOpacity={1}
+                  >
+                    <View style={styles.serviceIconContainer}>
+                      <View style={[styles.serviceIcon, { backgroundColor: iconBackgroundColor }]}>
+                        <Ionicons name={dcr.icon as any} size={20} color={iconColor} />
+                      </View>
+                    </View>
+                    <Text style={styles.serviceTitle}>{dcr.title}</Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           </View>
         </View>
@@ -731,38 +786,32 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
           <Text style={styles.sectionTitle}>Reports</Text>
           <View style={styles.reportsContainer}>
             <View style={styles.serviceGrid}>
-              <TouchableOpacity style={styles.serviceCard}>
-                <View style={styles.serviceIconContainer}>
-                  <View style={styles.serviceIcon}>
-                    <Ionicons name="call-outline" size={20} color="#0f766e" />
-                  </View>
-                </View>
-                <Text style={styles.serviceTitle}>Call Report</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.serviceCard}>
-                <View style={styles.serviceIconContainer}>
-                  <View style={styles.serviceIcon}>
-                    <Ionicons name="document-outline" size={20} color="#0f766e" />
-                  </View>
-                </View>
-                <Text style={styles.serviceTitle}>Daily Plan Report</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.serviceCard}>
-                <View style={styles.serviceIconContainer}>
-                  <View style={styles.serviceIcon}>
-                    <Ionicons name="eye-outline" size={20} color="#0f766e" />
-                  </View>
-                </View>
-                <Text style={styles.serviceTitle}>View All</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.serviceCard}>
-                <View style={styles.serviceIconContainer}>
-                  <View style={styles.serviceIcon}>
-                    <Ionicons name="analytics-outline" size={20} color="#0f766e" />
-                  </View>
-                </View>
-                <Text style={styles.serviceTitle}>Analytics</Text>
-              </TouchableOpacity>
+              {reportsCategories.map((report) => {
+                const isPressed = pressedReportsId === report.id;
+                const iconBackgroundColor = isPressed ? '#0f766e' : report.color;
+                const iconColor = isPressed ? 'white' : 'white';
+                
+                return (
+                  <TouchableOpacity
+                    key={report.id}
+                    style={styles.serviceCard}
+                    onPressIn={() => setPressedReportsId(report.id)}
+                    onPressOut={() => setPressedReportsId(null)}
+                    onPress={() => {
+                      setPressedReportsId(null);
+                      report.onPress();
+                    }}
+                    activeOpacity={1}
+                  >
+                    <View style={styles.serviceIconContainer}>
+                      <View style={[styles.serviceIcon, { backgroundColor: iconBackgroundColor }]}>
+                        <Ionicons name={report.icon as any} size={20} color={iconColor} />
+                      </View>
+                    </View>
+                    <Text style={styles.serviceTitle}>{report.title}</Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           </View>
         </View>
@@ -942,11 +991,13 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   serviceContainer: {
-    backgroundColor: '#f8fafc',
+    backgroundColor: 'white',
     borderRadius: 16,
     padding: 20,
     borderBottomWidth: 2,
     borderBottomColor: '#e5e7eb',
+    borderTopWidth: 2,
+    borderTopColor: '#e5e7eb',
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -978,7 +1029,6 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 25,
-    backgroundColor: 'white',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
@@ -1163,11 +1213,13 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   dcrContainer: {
-    backgroundColor: '#f8fafc',
+    backgroundColor: 'white',
     borderRadius: 16,
     padding: 20,
     borderBottomWidth: 2,
     borderBottomColor: '#e5e7eb',
+    borderTopWidth: 2,
+    borderTopColor: '#e5e7eb',
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -1205,11 +1257,13 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   reportsContainer: {
-    backgroundColor: '#f8fafc',
+    backgroundColor: 'white',
     borderRadius: 16,
     padding: 20,
     borderBottomWidth: 2,
     borderBottomColor: '#e5e7eb',
+    borderTopWidth: 2,
+    borderTopColor: '#e5e7eb',
     shadowColor: '#000',
     shadowOffset: {
       width: 0,

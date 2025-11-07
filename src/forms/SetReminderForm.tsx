@@ -15,10 +15,11 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import ButtonLoader from '../components/ButtonLoader';
 
 interface ReminderFormData {
   date: Date;
@@ -34,8 +35,10 @@ type SetReminderFormNavigationProp = NativeStackNavigationProp<RootStackParamLis
 
 export default function SetReminderForm(props?: SetReminderFormProps) {
   const insets = useSafeAreaInsets();
+  const route = useRoute<RouteProp<RootStackParamList, 'SetReminder'>>();
   const { onSubmit } = props || {};
   const navigation = useNavigation<SetReminderFormNavigationProp>();
+  const [submitting, setSubmitting] = useState(false);
   const [formData, setFormData] = useState<ReminderFormData>({
     date: new Date(),
     heading: '',
@@ -51,7 +54,8 @@ export default function SetReminderForm(props?: SetReminderFormProps) {
     return `${day}/${month}/${year}`;
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+    if (submitting) return;
     if (!formData.heading.trim()) {
       Alert.alert('Error', 'Please enter a heading for the reminder');
       return;
@@ -62,22 +66,28 @@ export default function SetReminderForm(props?: SetReminderFormProps) {
       return;
     }
 
-    // Dismiss keyboard before submitting
-    Keyboard.dismiss();
-
-    if (onSubmit) {
-      onSubmit(formData);
-    } else {
-      Alert.alert(
-        'Success',
-        'Reminder set successfully!',
-        [
-          {
-            text: 'OK',
-            onPress: () => navigation.goBack(),
-          },
-        ]
-      );
+    const submitHandler = onSubmit || route.params?.onSubmit;
+    try {
+      setSubmitting(true);
+      if (submitHandler) {
+        const possiblePromise: any = submitHandler(formData);
+        if (possiblePromise && typeof possiblePromise.then === 'function') {
+          await possiblePromise;
+        }
+      } else {
+        Alert.alert(
+          'Success',
+          'Reminder set successfully!',
+          [
+            {
+              text: 'OK',
+              onPress: () => navigation.goBack(),
+            },
+          ]
+        );
+      }
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -123,10 +133,10 @@ export default function SetReminderForm(props?: SetReminderFormProps) {
               placeholderTextColor="#9ca3af"
               value={formData.heading}
               onChangeText={(text) => setFormData(prev => ({ ...prev, heading: text }))}
-              maxLength={100}
+              maxLength={30}
             />
             <Text style={styles.characterCount}>
-              {formData.heading.length}/100
+              {formData.heading.length}/30
             </Text>
           </View>
 
@@ -142,22 +152,30 @@ export default function SetReminderForm(props?: SetReminderFormProps) {
               multiline
               numberOfLines={6}
               textAlignVertical="top"
-              maxLength={500}
+              maxLength={200}
             />
             <Text style={styles.characterCount}>
-              {formData.message.length}/500
+              {formData.message.length}/200
             </Text>
           </View>
 
           {/* Submit Button */}
-          <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
+          <TouchableOpacity 
+            style={[styles.submitButton, submitting && { opacity: 0.7 }]}
+            onPress={() => { Keyboard.dismiss(); handleSubmit(); }}
+            disabled={submitting}
+          >
             <LinearGradient
               colors={['#0f766e', '#14b8a6']}
               style={styles.submitButtonGradient}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
             >
-              <Text style={styles.submitButtonText}>Set Reminder</Text>
+              {submitting ? (
+                <ButtonLoader size={20} variant="white" />
+              ) : (
+                <Text style={styles.submitButtonText}>Set Reminder</Text>
+              )}
             </LinearGradient>
           </TouchableOpacity>
         </ScrollView>
@@ -193,7 +211,7 @@ const styles = StyleSheet.create({
   header: {
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: 80,
+    paddingTop: 30,
     paddingBottom: 20,
   },
   backButton: {

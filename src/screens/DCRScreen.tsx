@@ -1,130 +1,294 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  Alert,
+  RefreshControl,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
+import { gqlFetch } from '../api/graphql';
+import { HOME_PAGE_QUERY } from '../graphql/query/home';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import CustomLoader from '../components/CustomLoader';
+import { DCRCache } from '../utils/DCRCache';
 
 type DCRScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'DCR'>;
 
+interface DailyPlanCard {
+  id: string;
+  type: 'doctor' | 'chemist';
+  title: string;
+  description: string;
+  time: string;
+  date: string;
+  status: string;
+  statusText: string;
+  priority: string;
+  email: string;
+  phone: string;
+  dcr: boolean;
+  doctorCompanyId?: number;
+  chemistId?: number;
+  dailyPlanId?: number;
+  dailyPlanDoctorId?: number;
+  dailyPlanChemistId?: number;
+  abmId?: number;
+  workTogether?: boolean;
+}
+
 export default function DCRScreen() {
   const navigation = useNavigation<DCRScreenNavigationProp>();
+  const [dailyPlans, setDailyPlans] = useState<DailyPlanCard[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const dailyPlanOptions = [
-    { id: '1', title: 'Create Daily Plan', icon: 'add-circle-outline' },
-    { id: '2', title: 'View Today\'s Plan', icon: 'today-outline' },
-    { id: '3', title: 'Edit Plan', icon: 'create-outline' },
-    { id: '4', title: 'Plan History', icon: 'time-outline' },
-    { id: '5', title: 'Plan Templates', icon: 'copy-outline' },
-    { id: '6', title: 'Plan Analytics', icon: 'analytics-outline' },
-  ];
+  const loadDailyPlans = async (isRefreshing: boolean = false, useCache: boolean = true) => {
+    try {
+      if (isRefreshing) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
 
-  const callReportOptions = [
-    { id: '1', title: 'New Call Report', icon: 'add-circle-outline' },
-    { id: '2', title: 'View Call Reports', icon: 'list-outline' },
-    { id: '3', title: 'Call Statistics', icon: 'bar-chart-outline' },
-    { id: '4', title: 'Call History', icon: 'time-outline' },
-    { id: '5', title: 'Export Reports', icon: 'download-outline' },
-    { id: '6', title: 'Call Analytics', icon: 'trending-up-outline' },
-  ];
+      // Check cache first
+      if (useCache && !isRefreshing) {
+        const cachedPlans = await DCRCache.getDailyPlans<DailyPlanCard[]>();
+        if (cachedPlans) {
+          setDailyPlans(cachedPlans);
+          if (isRefreshing) {
+            setRefreshing(false);
+          } else {
+            setLoading(false);
+          }
+          return;
+        }
+      }
 
-  const reminderOptions = [
-    { id: '1', title: 'Set New Reminder', icon: 'add-circle-outline', action: 'setReminder' },
-    { id: '2', title: 'View Reminders', icon: 'alarm-outline' },
-    { id: '3', title: 'Edit Reminder', icon: 'create-outline' },
-    { id: '4', title: 'Reminder History', icon: 'time-outline' },
-    { id: '5', title: 'Reminder Settings', icon: 'settings-outline' },
-    { id: '6', title: 'Notification Settings', icon: 'notifications-outline' },
-  ];
+      const token = await AsyncStorage.getItem('authToken');
+      if (!token) {
+        if (isRefreshing) {
+          setRefreshing(false);
+        } else {
+          setLoading(false);
+        }
+        return;
+      }
 
-  const handleReminderAction = (option: any) => {
-    if (option.action === 'setReminder') {
-      navigation.navigate('SetReminder');
-    } else {
-      Alert.alert(option.title, `${option.title} functionality will be implemented`);
+      type HomePageResponse = {
+        homePage: {
+          data: {
+            dailyplans: Array<{
+              id: number;
+              isApproved: boolean;
+              workTogether: boolean;
+              isWorkTogetherConfirmed: boolean;
+              isRejected: boolean;
+              planDate: string;
+              notes: string;
+              abmId?: number;
+              doctors: Array<{
+                id: number;
+                doctorCompanyId: number;
+                dcr: boolean;
+                DoctorCompany: { email: string; phone: string };
+              }>;
+              chemists: Array<{
+                id: number;
+                dcr: boolean;
+                ChemistCompany: { email: string; phone: string; dob?: string; anniversary?: string };
+              }>;
+            }>;
+          };
+          success: boolean;
+          code: number;
+        };
+      };
+
+      const response = await gqlFetch<HomePageResponse>(HOME_PAGE_QUERY, {}, token);
+      
+      if (response.homePage.success && response.homePage.data) {
+        const { dailyplans } = response.homePage.data;
+        const transformedPlans: DailyPlanCard[] = [];
+        let cardIndex = 0;
+
+        dailyplans.forEach((plan) => {
+          const planDate = new Date(Number(plan.planDate));
+          const dailyPlanId = plan.id;
+
+          // Create cards for doctors
+          plan.doctors.forEach((doctor) => {
+            const doctorName = doctor.DoctorCompany.email.split('@')[0];
+            transformedPlans.push({
+              id: `plan-doctor-${cardIndex}`,
+              type: 'doctor',
+              title: `Dr. ${doctorName}`,
+              description: plan.notes || '',
+              time: planDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+              date: planDate.toLocaleDateString(),
+              status: 'pending',
+              statusText: 'Pending',
+              priority: plan.workTogether ? 'high' : 'medium',
+              email: doctor.DoctorCompany.email,
+              phone: doctor.DoctorCompany.phone,
+              doctorCompanyId: doctor.doctorCompanyId,
+              dcr: doctor.dcr,
+              dailyPlanId: dailyPlanId,
+              dailyPlanDoctorId: doctor.id,
+              dailyPlanChemistId: undefined,
+              abmId: plan.abmId,
+              workTogether: plan.workTogether,
+            });
+            cardIndex++;
+          });
+
+          // Create cards for chemists
+          plan.chemists.forEach((chemist) => {
+            const chemistName = chemist.ChemistCompany.email.split('@')[0];
+            transformedPlans.push({
+              id: `plan-chemist-${cardIndex}`,
+              type: 'chemist',
+              title: chemistName,
+              description: plan.notes || '',
+              time: planDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+              date: planDate.toLocaleDateString(),
+              status: 'pending',
+              statusText: 'Pending',
+              priority: plan.workTogether ? 'high' : 'medium',
+              email: chemist.ChemistCompany.email,
+              phone: chemist.ChemistCompany.phone,
+              chemistId: chemist.id,
+              dcr: chemist.dcr,
+              dailyPlanId: dailyPlanId,
+              dailyPlanDoctorId: undefined,
+              dailyPlanChemistId: chemist.id,
+              abmId: plan.abmId,
+              workTogether: plan.workTogether,
+            });
+            cardIndex++;
+          });
+        });
+        
+        setDailyPlans(transformedPlans);
+        // Cache the data
+        await DCRCache.setDailyPlans(transformedPlans);
+      }
+    } catch (error) {
+      console.error('Error loading daily plans:', error);
+    } finally {
+      if (isRefreshing) {
+        setRefreshing(false);
+      } else {
+        setLoading(false);
+      }
     }
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      loadDailyPlans();
+    }, [])
+  );
+
+  const onRefresh = () => {
+    loadDailyPlans(true, false); // Don't use cache on refresh
+  };
+
+  const handleCardPress = (plan: DailyPlanCard) => {
+    navigation.navigate('DCRForm', { planData: plan });
   };
 
   return (
     <View style={styles.container}>
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={24} color="#0f766e" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>DCR</Text>
+      <LinearGradient
+        colors={['#0f766e', '#14b8a6']}
+        style={styles.header}
+      >
+        
+        <Text style={styles.headerTitle}>Call Reports</Text>
         <View style={styles.placeholder} />
-      </View>
+      </LinearGradient>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Daily Plan Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Daily Plan</Text>
-          <View style={styles.optionsContainer}>
-            {dailyPlanOptions.map((option) => (
+      {loading ? (
+        <View style={styles.loaderContainer}>
+          <CustomLoader size={48} color="#0f766e" />
+        </View>
+      ) : (
+        <ScrollView 
+          style={styles.content} 
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={['#0f766e']}
+              tintColor="#0f766e"
+            />
+          }
+        >
+          {dailyPlans.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Ionicons name="document-outline" size={48} color="#9ca3af" />
+              <Text style={styles.emptyText}>No daily plans found</Text>
+            </View>
+          ) : (
+            dailyPlans.map((plan) => (
               <TouchableOpacity
-                key={option.id}
-                style={styles.optionItem}
-                onPress={() => Alert.alert(option.title, `${option.title} functionality will be implemented`)}
+                key={plan.id}
+                style={[
+                  styles.card,
+                  plan.dcr ? styles.cardCompleted : styles.cardPending
+                ]}
+                onPress={() => handleCardPress(plan)}
               >
-                <View style={styles.optionIcon}>
-                  <Ionicons name={option.icon as any} size={24} color="#0f766e" />
+                <View style={styles.cardContent}>
+                  <View style={styles.cardHeader}>
+                    <View style={styles.cardTitleContainer}>
+                      <Ionicons 
+                        name={plan.type === 'doctor' ? 'person' : 'medical'} 
+                        size={20} 
+                        color={plan.dcr ? '#10b981' : '#f59e0b'} 
+                        style={styles.cardIcon}
+                      />
+                      <Text style={styles.cardTitle}>{plan.title}</Text>
+                    </View>
+                    {plan.dcr && (
+                      <View style={styles.badge}>
+                        <Text style={styles.badgeText}>Complete</Text>
+                      </View>
+                    )}
+                  </View>
+                  
+                  <View style={styles.cardInfo}>
+                    <View style={styles.infoRow}>
+                      <Ionicons name="time-outline" size={16} color="#6b7280" />
+                      <Text style={styles.infoText}>{plan.time}</Text>
+                    </View>
+                    <View style={styles.infoRow}>
+                      <Ionicons name="calendar-outline" size={16} color="#6b7280" />
+                      <Text style={styles.infoText}>{plan.date}</Text>
+                    </View>
+                  </View>
+
+                  {plan.description && (
+                    <Text style={styles.cardDescription} numberOfLines={2}>
+                      {plan.description}
+                    </Text>
+                  )}
                 </View>
-                <Text style={styles.optionText}>{option.title}</Text>
+                
                 <Ionicons name="chevron-forward" size={20} color="#6b7280" />
               </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-
-        {/* Call Report Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Call Report</Text>
-          <View style={styles.optionsContainer}>
-            {callReportOptions.map((option) => (
-              <TouchableOpacity
-                key={option.id}
-                style={styles.optionItem}
-                onPress={() => Alert.alert(option.title, `${option.title} functionality will be implemented`)}
-              >
-                <View style={styles.optionIcon}>
-                  <Ionicons name={option.icon as any} size={24} color="#0f766e" />
-                </View>
-                <Text style={styles.optionText}>{option.title}</Text>
-                <Ionicons name="chevron-forward" size={20} color="#6b7280" />
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-
-        {/* Set Reminder Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Set Reminder</Text>
-          <View style={styles.optionsContainer}>
-            {reminderOptions.map((option) => (
-              <TouchableOpacity
-                key={option.id}
-                style={styles.optionItem}
-                onPress={() => handleReminderAction(option)}
-              >
-                <View style={styles.optionIcon}>
-                  <Ionicons name={option.icon as any} size={24} color="#0f766e" />
-                </View>
-                <Text style={styles.optionText}>{option.title}</Text>
-                <Ionicons name="chevron-forward" size={20} color="#6b7280" />
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-      </ScrollView>
-
+            ))
+          )}
+        </ScrollView>
+      )}
     </View>
   );
 }
@@ -135,13 +299,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8fafc',
   },
   header: {
-    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     paddingTop: 50,
     paddingBottom: 20,
     paddingHorizontal: 20,
-    backgroundColor: '#0f766e',
   },
   backButton: {
     padding: 8,
@@ -158,50 +319,98 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 20,
   },
-  section: {
-    marginBottom: 30,
+  loaderContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#1f2937',
-    marginBottom: 12,
+  loadingText: {
+    fontSize: 16,
+    color: '#6b7280',
   },
-  optionsContainer: {
-    backgroundColor: '#F5F5F5',
-    borderRadius: 16,
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 60,
+  },
+  emptyText: {
+    fontSize: 16,
+    color: '#9ca3af',
+    marginTop: 12,
+  },
+  card: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'white',
+    borderRadius: 12,
     padding: 16,
+    marginBottom: 12,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 4,
+      height: 2,
     },
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-    elevation: 8,
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  optionItem: {
+  cardPending: {
+    backgroundColor: '#fef3c7', // Light yellow/amber for pending
+  },
+  cardCompleted: {
+    backgroundColor: '#d1fae5', // Light green for completed
+  },
+  cardContent: {
+    flex: 1,
+  },
+  cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    justifyContent: 'space-between',
+    marginBottom: 8,
   },
-  optionIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#0f766e',
-    justifyContent: 'center',
+  cardTitleContainer: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginRight: 12,
-  },
-  optionText: {
     flex: 1,
-    fontSize: 16,
+  },
+  cardIcon: {
+    marginRight: 8,
+  },
+  cardTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#1f2937',
+  },
+  badge: {
+    backgroundColor: '#10b981',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  badgeText: {
+    fontSize: 12,
     fontWeight: '600',
-    color: '#374151',
+    color: 'white',
+  },
+  cardInfo: {
+    flexDirection: 'row',
+    marginBottom: 8,
+    gap: 16,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  infoText: {
+    fontSize: 14,
+    color: '#6b7280',
+  },
+  cardDescription: {
+    fontSize: 14,
+    color: '#6b7280',
+    marginTop: 4,
   },
 });

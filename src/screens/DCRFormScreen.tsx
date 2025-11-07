@@ -1,534 +1,375 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
-  TextInput,
   ScrollView,
+  TextInput,
   Alert,
-  Modal,
-  FlatList,
-  Image,
   KeyboardAvoidingView,
   Platform,
   Keyboard,
+  Modal,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
+import { gqlFetch } from '../api/graphql';
+import { CREATE_DCR_MUTATION } from '../graphql/mutation/dcr';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Location from 'expo-location';
 import DateTimePicker from '@react-native-community/datetimepicker';
-
-interface Doctor {
-  id: string;
-  name: string;
-  title: string;
-  specialty: string;
-  phone: string;
-  profileImage: string;
-}
-
-interface Chemist {
-  id: string;
-  name: string;
-  title: string;
-  shopName: string;
-  phone: string;
-  profileImage: string;
-}
-
-interface Product {
-  id: string;
-  name: string;
-  type: string;
-  salt: string;
-}
-
-interface DCRFormData {
-  selectedPerson: Doctor | Chemist | null;
-  personType: 'doctor' | 'chemist' | null;
-  date: Date;
-  startTime: Date;
-  endTime: Date;
-  meetingType: 'ABM' | 'MR';
-  managerName: string;
-  selectedProducts: Product[];
-  remarks: string;
-}
+import ButtonLoader from '../components/ButtonLoader';
+import { LoginManager } from '../utils/LoginManager';
+import { DCRCache } from '../utils/DCRCache';
 
 type DCRFormScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'DCRForm'>;
+type DCRFormScreenRouteProp = RouteProp<RootStackParamList, 'DCRForm'>;
+
+interface Product {
+  id: number;
+  name: string;
+}
+
+const MOCK_PRODUCTS: Product[] = [
+  { id: 1, name: 'Product A' },
+  { id: 2, name: 'Product B' },
+  { id: 3, name: 'Product C' },
+  { id: 4, name: 'Product D' },
+  { id: 5, name: 'Product E' },
+];
 
 export default function DCRFormScreen() {
   const navigation = useNavigation<DCRFormScreenNavigationProp>();
-  const [formData, setFormData] = useState<DCRFormData>({
-    selectedPerson: null,
-    personType: null,
-    date: new Date(),
-    startTime: new Date(),
-    endTime: new Date(),
-    meetingType: 'MR',
-    managerName: 'John Smith (Manager)', // Auto-filled dummy data
-    selectedProducts: [],
-    remarks: '',
-  });
+  const route = useRoute<DCRFormScreenRouteProp>();
+  const planData = route.params?.planData;
 
-  const [showPersonModal, setShowPersonModal] = useState(false);
+  const [typeOfReport, setTypeOfReport] = useState<'REMINDER' | 'CALL' | 'APPOINTMENT'>('CALL');
+  const [startTime, setStartTime] = useState<Date>(new Date());
+  const [endTime, setEndTime] = useState<Date>(new Date());
   const [showStartTimePicker, setShowStartTimePicker] = useState(false);
   const [showEndTimePicker, setShowEndTimePicker] = useState(false);
+  const [selectedProducts, setSelectedProducts] = useState<number[]>([]);
+  const [remarks, setRemarks] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [latitude, setLatitude] = useState<number | null>(null);
+  const [longitude, setLongitude] = useState<number | null>(null);
+  const [showTypeModal, setShowTypeModal] = useState(false);
   const [showProductModal, setShowProductModal] = useState(false);
-  const [showPreview, setShowPreview] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
 
-  // Mock data for doctors and chemists
-  const doctorsData: Doctor[] = [
-    {
-      id: '1',
-      name: 'Dr. Sarah Johnson',
-      title: 'MBBS, MD',
-      specialty: 'Cardiologist',
-      phone: '+1 (555) 123-4567',
-      profileImage: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=150&h=150&fit=crop&crop=face',
-    },
-    {
-      id: '2',
-      name: 'Dr. Michael Chen',
-      title: 'MBBS, MS',
-      specialty: 'Orthopedic Surgeon',
-      phone: '+1 (555) 234-5678',
-      profileImage: 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?w=150&h=150&fit=crop&crop=face',
-    },
-    {
-      id: '3',
-      name: 'Dr. Emily Rodriguez',
-      title: 'MBBS, MD',
-      specialty: 'Pediatrician',
-      phone: '+1 (555) 345-6789',
-      profileImage: 'https://images.unsplash.com/photo-1594824388852-7b4b1b5b5b5b?w=150&h=150&fit=crop&crop=face',
-    },
-  ];
+  useEffect(() => {
+    getLocation();
+  }, []);
 
-  const chemistsData: Chemist[] = [
-    {
-      id: '1',
-      name: 'Rajesh Kumar',
-      title: 'B.Pharm',
-      shopName: 'Kumar Medical Store',
-      phone: '+91 98765 43210',
-      profileImage: 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?w=150&h=150&fit=crop&crop=face',
-    },
-    {
-      id: '2',
-      name: 'Priya Sharma',
-      title: 'M.Pharm',
-      shopName: 'Sharma Pharmacy',
-      phone: '+91 98765 43211',
-      profileImage: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=150&h=150&fit=crop&crop=face',
-    },
-    {
-      id: '3',
-      name: 'Amit Patel',
-      title: 'B.Pharm',
-      shopName: 'Patel Medical Center',
-      phone: '+91 98765 43212',
-      profileImage: 'https://images.unsplash.com/photo-1582750433449-648ed127bb54?w=150&h=150&fit=crop&crop=face',
-    },
-  ];
+  const getLocation = async () => {
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Denied', 'Location permission is required to submit DCR');
+        return;
+      }
 
-  const productsData: Product[] = [
-    { id: '1', name: 'CardioMax', type: 'Tablet', salt: 'Amlodipine 5mg' },
-    { id: '2', name: 'HeartGuard', type: 'Capsule', salt: 'Atorvastatin 20mg' },
-    { id: '3', name: 'BloodFlow', type: 'Syrup', salt: 'Aspirin 75mg' },
-    { id: '4', name: 'NeuroPlus', type: 'Tablet', salt: 'Donepezil 5mg' },
-    { id: '5', name: 'DiabCare', type: 'Capsule', salt: 'Metformin 500mg' },
-  ];
-
-  const allPersons = [...doctorsData, ...chemistsData];
-  const filteredPersons = allPersons.filter(person =>
-    person.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    ('specialty' in person ? person.specialty : person.shopName).toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  const handlePersonSelect = (person: Doctor | Chemist) => {
-    setFormData(prev => ({
-      ...prev,
-      selectedPerson: person,
-      personType: 'specialty' in person ? 'doctor' : 'chemist',
-    }));
-    setShowPersonModal(false);
-    setSearchQuery('');
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      });
+      setLatitude(location.coords.latitude);
+      setLongitude(location.coords.longitude);
+    } catch (error) {
+      console.error('Error getting location:', error);
+      Alert.alert('Error', 'Failed to get location. Please try again.');
+    }
   };
 
-  const handleProductSelect = (product: Product) => {
-    setFormData(prev => ({
-      ...prev,
-      selectedProducts: prev.selectedProducts.some(p => p.id === product.id)
-        ? prev.selectedProducts.filter(p => p.id !== product.id)
-        : [...prev.selectedProducts, product],
-    }));
-  };
-
-  const removeProduct = (productId: string) => {
-    setFormData(prev => ({
-      ...prev,
-      selectedProducts: prev.selectedProducts.filter(p => p.id !== productId),
-    }));
-  };
-
-  const formatDate = (date: Date) => {
-    const day = date.getDate().toString().padStart(2, '0');
-    const month = (date.getMonth() + 1).toString().padStart(2, '0');
-    const year = date.getFullYear();
-    return `${day}/${month}/${year}`;
-  };
-
-  const formatTime = (date: Date) => {
+  const formatTime = (date: Date): string => {
     const hours = date.getHours().toString().padStart(2, '0');
     const minutes = date.getMinutes().toString().padStart(2, '0');
     return `${hours}:${minutes}`;
   };
 
-  const handleSubmit = () => {
-    if (!formData.selectedPerson) {
-      Alert.alert('Error', 'Please select a doctor or chemist');
-      return;
-    }
-    if (formData.selectedProducts.length === 0) {
-      Alert.alert('Error', 'Please select at least one product');
-      return;
-    }
-
-    // Dismiss keyboard before showing preview
-    Keyboard.dismiss();
-    setShowPreview(true);
-  };
-
-  const handleContinue = () => {
-    setShowPreview(false);
-    Alert.alert(
-      'Success',
-      'Call reported successfully!',
-      [
-        {
-          text: 'OK',
-          onPress: () => navigation.goBack(),
-        },
-      ]
+  const toggleProduct = (productId: number) => {
+    setSelectedProducts(prev =>
+      prev.includes(productId)
+        ? prev.filter(id => id !== productId)
+        : [...prev, productId]
     );
   };
 
-  const renderPersonItem = ({ item }: { item: Doctor | Chemist }) => (
-    <TouchableOpacity
-      style={styles.personItem}
-      onPress={() => handlePersonSelect(item)}
-    >
-      <Image source={{ uri: item.profileImage }} style={styles.personImage} />
-      <View style={styles.personInfo}>
-        <Text style={styles.personName}>{item.name}</Text>
-        <Text style={styles.personTitle}>{item.title}</Text>
-        <Text style={styles.personSpecialty}>
-          {'specialty' in item ? item.specialty : item.shopName}
-        </Text>
-      </View>
-    </TouchableOpacity>
-  );
+  const getSelectedProductsText = () => {
+    if (selectedProducts.length === 0) {
+      return 'Select Products';
+    }
+    if (selectedProducts.length === 1) {
+      const product = MOCK_PRODUCTS.find(p => p.id === selectedProducts[0]);
+      return product?.name || '1 product selected';
+    }
+    return `${selectedProducts.length} products selected`;
+  };
 
-  const renderProductItem = ({ item }: { item: Product }) => (
-    <TouchableOpacity
-      style={[
-        styles.productItem,
-        formData.selectedProducts.some(p => p.id === item.id) && styles.selectedProduct,
-      ]}
-      onPress={() => handleProductSelect(item)}
-    >
-      <View style={styles.productInfo}>
-        <Text style={styles.productName}>{item.name}</Text>
-        <Text style={styles.productType}>{item.type} - {item.salt}</Text>
-      </View>
-      {formData.selectedProducts.some(p => p.id === item.id) && (
-        <Ionicons name="checkmark-circle" size={24} color="#0f766e" />
-      )}
-    </TouchableOpacity>
-  );
+  const handleSubmit = async () => {
+    try {
+      Keyboard.dismiss();
+
+      if (!latitude || !longitude) {
+        Alert.alert('Error', 'Location is required. Please enable location services.');
+        return;
+      }
+
+      if (selectedProducts.length === 0) {
+        Alert.alert('Error', 'Please select at least one product.');
+        return;
+      }
+
+      setSubmitting(true);
+      const token = await AsyncStorage.getItem('authToken');
+      if (!token) {
+        Alert.alert('Error', 'Authentication token not found. Please login again.');
+        setSubmitting(false);
+        return;
+      }
+
+      const userId = await LoginManager.getStoredUserId();
+      if (!userId) {
+        Alert.alert('Error', 'User ID not found. Please login again.');
+        setSubmitting(false);
+        return;
+      }
+
+      // Prepare mutation data
+      const mutationData: any = {
+        dailyPlanId: planData?.dailyPlanId || 1,
+        abmId: planData?.workTogether && planData?.abmId ? planData.abmId : null,
+        dailyPlanDoctorId: planData?.dailyPlanDoctorId || null,
+        dailyPlanChemistId: planData?.dailyPlanChemistId || null,
+        doctorCompanyId: planData?.type === 'doctor' ? planData.doctorCompanyId : null,
+        chemistCompanyId: planData?.type === 'chemist' ? planData.chemistId : null,
+        typeOfReport: typeOfReport,
+        reportStartTime: formatTime(startTime),
+        reportEndTime: formatTime(endTime),
+        products: selectedProducts,
+        remarks: remarks || '',
+        latitude: latitude,
+        longitude: longitude,
+      };
+
+      type CreateDcrResponse = {
+        createDcr: {
+          code: number;
+          success: boolean;
+          message: string;
+        };
+      };
+
+      const response = await gqlFetch<CreateDcrResponse>(
+        CREATE_DCR_MUTATION,
+        { data: mutationData },
+        token
+      );
+
+      if (response.createDcr.success) {
+        // Remove the specific plan from cache
+        if (planData?.id) {
+          await DCRCache.removePlan(planData.id);
+        }
+        
+        Alert.alert('Success', response.createDcr.message || 'DCR created successfully!', [
+          {
+            text: 'OK',
+            onPress: () => navigation.goBack(),
+          },
+        ]);
+      } else {
+        Alert.alert('Error', response.createDcr.message || 'Failed to create DCR.');
+      }
+    } catch (error: any) {
+      console.error('Error creating DCR:', error);
+      Alert.alert('Error', error.message || 'Failed to create DCR. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <LinearGradient
-      colors={['#f0fdfa', '#ecfdf5', '#f0fdf4']}
+      colors={['#f0fdfa', '#ecfdf5', '#f8fafc']}
       style={styles.container}
     >
+      {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#0f766e" />
+        <TouchableOpacity 
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+        >
+          <Ionicons name="arrow-back" size={24} color="#374151" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Call Reporting</Text>
-        <View style={{ width: 24 }} />
+        <Text style={styles.headerTitle}>Call Report</Text>
+        <View style={styles.placeholder} />
       </View>
 
-      <KeyboardAvoidingView 
+      <KeyboardAvoidingView
         style={styles.keyboardContainer}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
       >
-        <ScrollView 
-          style={styles.content} 
+        <ScrollView
+          style={styles.content}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-        {/* Person Selection */}
-        <View style={styles.section}>
-          <Text style={styles.label}>Select Doctor/Chemist *</Text>
-          <TouchableOpacity
-            style={styles.inputContainer}
-            onPress={() => setShowPersonModal(true)}
-          >
-            <Text style={[
-              styles.inputText,
-              !formData.selectedPerson && styles.placeholderText
-            ]}>
-              {formData.selectedPerson 
-                ? `${formData.selectedPerson.name} (${formData.personType === 'doctor' ? 'Doctor' : 'Chemist'})`
-                : 'Tap to select doctor or chemist'
-              }
-            </Text>
-            <Ionicons name="chevron-down" size={20} color="#6b7280" />
-          </TouchableOpacity>
-        </View>
+          {/* Plan Details Card */}
+          {planData && (
+            <View style={styles.planCard}>
+              <View style={styles.planCardHeader}>
+                <Ionicons 
+                  name={planData.type === 'doctor' ? 'person' : 'medical'} 
+                  size={24} 
+                  color="#0f766e" 
+                />
+                <Text style={styles.planCardTitle}>{planData.title}</Text>
+              </View>
+              <View style={styles.planCardInfo}>
+                <Text style={styles.planCardText}>📧 {planData.email}</Text>
+                <Text style={styles.planCardText}>📞 {planData.phone}</Text>
+                <Text style={styles.planCardText}>🕐 {planData.time}</Text>
+                <Text style={styles.planCardText}>📅 {planData.date}</Text>
+              </View>
+            </View>
+          )}
 
-        {/* Date Selection - Locked to today */}
-        <View style={styles.section}>
-          <Text style={styles.label}>Date</Text>
-          <View style={styles.disabledInputContainer}>
-            <Text style={styles.disabledInputText}>{formatDate(formData.date)}</Text>
-            <Ionicons name="lock-closed" size={16} color="#9ca3af" />
+          {/* Type Selection */}
+          <View style={styles.section}>
+            <Text style={styles.label}>Type *</Text>
+            <TouchableOpacity
+              style={styles.selectContainer}
+              onPress={() => setShowTypeModal(true)}
+            >
+              <Text style={[
+                styles.selectText,
+                !typeOfReport && styles.selectPlaceholder
+              ]}>
+                {typeOfReport || 'Select Type'}
+              </Text>
+              <Ionicons name="chevron-down" size={20} color="#6b7280" />
+            </TouchableOpacity>
           </View>
-        </View>
 
-        {/* Time Selection */}
-        <View style={styles.timeRow}>
-          <View style={styles.timeContainer}>
+          {/* Start Time */}
+          <View style={styles.section}>
             <Text style={styles.label}>Start Time *</Text>
             <TouchableOpacity
               style={styles.inputContainer}
               onPress={() => setShowStartTimePicker(true)}
             >
-              <Text style={styles.inputText}>{formatTime(formData.startTime)}</Text>
               <Ionicons name="time-outline" size={20} color="#6b7280" />
+              <Text style={styles.inputText}>{formatTime(startTime)}</Text>
             </TouchableOpacity>
           </View>
 
-          <View style={styles.timeContainer}>
+          {/* End Time */}
+          <View style={styles.section}>
             <Text style={styles.label}>End Time *</Text>
             <TouchableOpacity
               style={styles.inputContainer}
               onPress={() => setShowEndTimePicker(true)}
             >
-              <Text style={styles.inputText}>{formatTime(formData.endTime)}</Text>
               <Ionicons name="time-outline" size={20} color="#6b7280" />
+              <Text style={styles.inputText}>{formatTime(endTime)}</Text>
             </TouchableOpacity>
           </View>
-        </View>
 
-        {/* Manager Name - Auto-filled and non-editable */}
-        <View style={styles.section}>
-          <Text style={styles.label}>Manager/ABM Name</Text>
-          <View style={styles.disabledInputContainer}>
-            <Text style={styles.disabledInputText}>{formData.managerName}</Text>
-            <Ionicons name="lock-closed" size={16} color="#9ca3af" />
-          </View>
-        </View>
-
-        {/* Product Selection */}
-        <View style={styles.section}>
-          <Text style={styles.label}>Products *</Text>
-          <TouchableOpacity
-            style={styles.inputContainer}
-            onPress={() => setShowProductModal(true)}
-          >
-            <Text style={[
-              styles.inputText,
-              formData.selectedProducts.length === 0 && styles.placeholderText
-            ]}>
-              {formData.selectedProducts.length === 0 
-                ? 'Tap to select products'
-                : `${formData.selectedProducts.length} product(s) selected`
-              }
-            </Text>
-            <Ionicons name="chevron-down" size={20} color="#6b7280" />
-          </TouchableOpacity>
-
-          {/* Selected Products */}
-          {formData.selectedProducts.length > 0 && (
-            <View style={styles.selectedProductsContainer}>
-              {formData.selectedProducts.map((product) => (
-                <View key={product.id} style={styles.selectedProductItem}>
-                  <Text style={styles.selectedProductText}>{product.name}</Text>
-                  <TouchableOpacity onPress={() => removeProduct(product.id)}>
-                    <Ionicons name="close-circle" size={20} color="#ef4444" />
-                  </TouchableOpacity>
-                </View>
-              ))}
-            </View>
-          )}
-        </View>
-
-        {/* Remarks */}
-        <View style={styles.section}>
-          <Text style={styles.label}>Remarks</Text>
-          <TextInput
-            style={styles.textArea}
-            placeholder="Enter any additional remarks..."
-            placeholderTextColor="#9ca3af"
-            value={formData.remarks}
-            onChangeText={(text) => setFormData(prev => ({ ...prev, remarks: text }))}
-            multiline
-            numberOfLines={4}
-            textAlignVertical="top"
-          />
-        </View>
-
-        {/* Submit Button */}
-        <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
-          <Text style={styles.submitButtonText}>Report</Text>
-        </TouchableOpacity>
-        </ScrollView>
-      </KeyboardAvoidingView>
-
-      {/* Person Selection Modal */}
-      <Modal
-        visible={showPersonModal}
-        animationType="slide"
-        presentationStyle="pageSheet"
-      >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <TouchableOpacity onPress={() => setShowPersonModal(false)}>
-              <Text style={styles.modalCloseText}>Cancel</Text>
+          {/* Products Selection */}
+          <View style={styles.section}>
+            <Text style={styles.label}>Products *</Text>
+            <TouchableOpacity
+              style={styles.selectContainer}
+              onPress={() => setShowProductModal(true)}
+            >
+              <Text style={[
+                styles.selectText,
+                selectedProducts.length === 0 && styles.selectPlaceholder
+              ]}>
+                {getSelectedProductsText()}
+              </Text>
+              <Ionicons name="chevron-down" size={20} color="#6b7280" />
             </TouchableOpacity>
-            <Text style={styles.modalTitle}>Select Doctor/Chemist</Text>
-            <View style={{ width: 60 }} />
           </View>
 
-          <View style={styles.searchContainer}>
-            <Ionicons name="search-outline" size={20} color="#6b7280" />
+          {/* Remarks */}
+          <View style={styles.section}>
+            <Text style={styles.label}>Remarks</Text>
             <TextInput
-              style={styles.searchInput}
-              placeholder="Search doctors or chemists..."
+              style={styles.textArea}
+              placeholder="Enter remarks..."
               placeholderTextColor="#9ca3af"
-              value={searchQuery}
-              onChangeText={setSearchQuery}
+              value={remarks}
+              onChangeText={setRemarks}
+              multiline
+              numberOfLines={6}
+              textAlignVertical="top"
             />
           </View>
 
-          <FlatList
-            data={filteredPersons}
-            renderItem={renderPersonItem}
-            keyExtractor={(item) => `${item.id}-${'specialty' in item ? 'doctor' : 'chemist'}`}
-            style={styles.personList}
-          />
-        </View>
-      </Modal>
-
-      {/* Product Selection Modal */}
-      <Modal
-        visible={showProductModal}
-        animationType="slide"
-        presentationStyle="pageSheet"
-      >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <TouchableOpacity onPress={() => setShowProductModal(false)}>
-              <Text style={styles.modalCloseText}>Cancel</Text>
-            </TouchableOpacity>
-            <Text style={styles.modalTitle}>Select Products</Text>
-            <TouchableOpacity onPress={() => setShowProductModal(false)}>
-              <Text style={styles.modalDoneText}>Done</Text>
-            </TouchableOpacity>
-          </View>
-
-          <FlatList
-            data={productsData}
-            renderItem={renderProductItem}
-            keyExtractor={(item) => item.id}
-            style={styles.productList}
-          />
-        </View>
-      </Modal>
-
-      {/* Preview Modal */}
-      <Modal
-        visible={showPreview}
-        animationType="slide"
-        presentationStyle="pageSheet"
-      >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <TouchableOpacity onPress={() => setShowPreview(false)}>
-              <Text style={styles.modalCloseText}>Cancel</Text>
-            </TouchableOpacity>
-            <Text style={styles.modalTitle}>Report Preview</Text>
-            <View style={{ width: 60 }} />
-          </View>
-
-          <ScrollView style={styles.previewContent}>
-            <View style={styles.previewSection}>
-              <Text style={styles.previewLabel}>Person:</Text>
-              <Text style={styles.previewValue}>
-                {formData.selectedPerson?.name} ({formData.personType === 'doctor' ? 'Doctor' : 'Chemist'})
+          {/* Location Status */}
+          <View style={styles.section}>
+            <View style={styles.locationStatus}>
+              <Ionicons 
+                name={latitude && longitude ? "location" : "location-outline"} 
+                size={20} 
+                color={latitude && longitude ? "#10b981" : "#9ca3af"} 
+              />
+              <Text style={[
+                styles.locationText,
+                !latitude && !longitude && styles.locationTextPending
+              ]}>
+                {latitude && longitude 
+                  ? `Location: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`
+                  : 'Getting location...'
+                }
               </Text>
             </View>
+          </View>
 
-            <View style={styles.previewSection}>
-              <Text style={styles.previewLabel}>Date:</Text>
-              <Text style={styles.previewValue}>{formatDate(formData.date)}</Text>
-            </View>
-
-            <View style={styles.previewSection}>
-              <Text style={styles.previewLabel}>Time:</Text>
-              <Text style={styles.previewValue}>
-                {formatTime(formData.startTime)} - {formatTime(formData.endTime)}
-              </Text>
-            </View>
-
-
-            <View style={styles.previewSection}>
-              <Text style={styles.previewLabel}>Manager:</Text>
-              <Text style={styles.previewValue}>{formData.managerName}</Text>
-            </View>
-
-            <View style={styles.previewSection}>
-              <Text style={styles.previewLabel}>Products:</Text>
-              {formData.selectedProducts.map((product, index) => (
-                <Text key={index} style={styles.previewValue}>
-                  • {product.name} ({product.type})
-                </Text>
-              ))}
-            </View>
-
-            {formData.remarks && (
-              <View style={styles.previewSection}>
-                <Text style={styles.previewLabel}>Remarks:</Text>
-                <Text style={styles.previewValue}>{formData.remarks}</Text>
-              </View>
+          {/* Submit Button */}
+          <TouchableOpacity
+            style={styles.submitButton}
+            onPress={handleSubmit}
+            disabled={submitting || !latitude || !longitude}
+          >
+            {submitting ? (
+              <LinearGradient
+                colors={['#0f766e', '#14b8a6']}
+                style={styles.submitButtonGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+              >
+                <ButtonLoader size={20} variant="white" />
+              </LinearGradient>
+            ) : (
+              <LinearGradient
+                colors={['#0f766e', '#14b8a6']}
+                style={styles.submitButtonGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+              >
+                <Text style={styles.submitButtonText}>Submit Report</Text>
+              </LinearGradient>
             )}
-          </ScrollView>
-
-          <TouchableOpacity style={styles.continueButton} onPress={handleContinue}>
-            <Text style={styles.continueButtonText}>Continue</Text>
           </TouchableOpacity>
-        </View>
-      </Modal>
+        </ScrollView>
+      </KeyboardAvoidingView>
 
       {/* Time Pickers */}
       {showStartTimePicker && (
         <DateTimePicker
-          value={formData.startTime}
+          value={startTime}
           mode="time"
           display="default"
           onChange={(event, selectedTime) => {
             setShowStartTimePicker(false);
             if (selectedTime) {
-              setFormData(prev => ({ ...prev, startTime: selectedTime }));
+              setStartTime(selectedTime);
             }
           }}
         />
@@ -536,17 +377,120 @@ export default function DCRFormScreen() {
 
       {showEndTimePicker && (
         <DateTimePicker
-          value={formData.endTime}
+          value={endTime}
           mode="time"
           display="default"
           onChange={(event, selectedTime) => {
             setShowEndTimePicker(false);
             if (selectedTime) {
-              setFormData(prev => ({ ...prev, endTime: selectedTime }));
+              setEndTime(selectedTime);
             }
           }}
         />
       )}
+
+      {/* Type Selection Modal */}
+      <Modal
+        visible={showTypeModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowTypeModal(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowTypeModal(false)}
+        >
+          <View style={styles.modalContentCenter} onStartShouldSetResponder={() => true}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Type</Text>
+              <TouchableOpacity onPress={() => setShowTypeModal(false)}>
+                <Ionicons name="close" size={24} color="#374151" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView 
+              style={styles.modalScrollView}
+              showsVerticalScrollIndicator={true}
+            >
+              <View style={styles.modalOptions}>
+                {(['REMINDER', 'CALL', 'APPOINTMENT'] as const).map((type) => (
+                  <TouchableOpacity
+                    key={type}
+                    style={[
+                      styles.modalOption,
+                      typeOfReport === type && styles.modalOptionSelected
+                    ]}
+                    onPress={() => {
+                      setTypeOfReport(type);
+                      setShowTypeModal(false);
+                    }}
+                  >
+                    <Text style={[
+                      styles.modalOptionText,
+                      typeOfReport === type && styles.modalOptionTextSelected
+                    ]}>
+                      {type}
+                    </Text>
+                    {typeOfReport === type && (
+                      <Ionicons name="checkmark" size={20} color="#0f766e" />
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </ScrollView>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Products Selection Modal */}
+      <Modal
+        visible={showProductModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowProductModal(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowProductModal(false)}
+        >
+          <View style={styles.modalContentCenter} onStartShouldSetResponder={() => true}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Products</Text>
+              <TouchableOpacity onPress={() => setShowProductModal(false)}>
+                <Ionicons name="close" size={24} color="#374151" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView 
+              style={styles.modalScrollView}
+              showsVerticalScrollIndicator={true}
+            >
+              <View style={styles.modalOptions}>
+                {MOCK_PRODUCTS.map((product) => (
+                  <TouchableOpacity
+                    key={product.id}
+                    style={[
+                      styles.modalOption,
+                      selectedProducts.includes(product.id) && styles.modalOptionSelected
+                    ]}
+                    onPress={() => toggleProduct(product.id)}
+                  >
+                    <Text style={[
+                      styles.modalOptionText,
+                      selectedProducts.includes(product.id) && styles.modalOptionTextSelected
+                    ]}>
+                      {product.name}
+                    </Text>
+                    {selectedProducts.includes(product.id) && (
+                      <Ionicons name="checkmark" size={20} color="#0f766e" />
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </ScrollView>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </LinearGradient>
   );
 }
@@ -562,32 +506,68 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
     paddingTop: 50,
     paddingBottom: 20,
+    paddingHorizontal: 20,
   },
   backButton: {
     padding: 8,
   },
   headerTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
-    color: '#0f766e',
+    color: '#1f2937',
+  },
+  placeholder: {
+    width: 40,
   },
   content: {
     flex: 1,
     paddingHorizontal: 20,
   },
+  planCard: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 20,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  planCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  planCardTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#1f2937',
+    marginLeft: 8,
+  },
+  planCardInfo: {
+    gap: 8,
+  },
+  planCardText: {
+    fontSize: 14,
+    color: '#6b7280',
+  },
   section: {
     marginBottom: 20,
   },
   label: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
     color: '#374151',
-    marginBottom: 8,
+    marginBottom: 12,
   },
-  inputContainer: {
+  selectContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -598,23 +578,94 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#d1d5db',
   },
-  inputText: {
+  selectText: {
     fontSize: 16,
     color: '#374151',
     flex: 1,
   },
-  placeholderText: {
+  selectPlaceholder: {
     color: '#9ca3af',
   },
-  textInput: {
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContentCenter: {
+    backgroundColor: 'white',
+    borderRadius: 20,
+    width: '100%',
+    maxWidth: 400,
+    maxHeight: '80%',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 10,
+  },
+  modalScrollView: {
+    maxHeight: 400,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#1f2937',
+  },
+  modalOptions: {
+    padding: 20,
+    paddingBottom: 30,
+  },
+  modalOption: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    marginBottom: 8,
+    backgroundColor: '#f9fafb',
+  },
+  modalOptionSelected: {
+    backgroundColor: '#f0fdfa',
+    borderWidth: 2,
+    borderColor: '#0f766e',
+  },
+  modalOptionText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  modalOptionTextSelected: {
+    color: '#0f766e',
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: 'white',
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: '#d1d5db',
+    gap: 12,
+  },
+  inputText: {
     fontSize: 16,
     color: '#374151',
+    flex: 1,
   },
   textArea: {
     backgroundColor: 'white',
@@ -625,224 +676,37 @@ const styles = StyleSheet.create({
     borderColor: '#d1d5db',
     fontSize: 16,
     color: '#374151',
-    minHeight: 100,
+    minHeight: 120,
+    textAlignVertical: 'top',
   },
-  timeRow: {
+  locationStatus: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 20,
-  },
-  timeContainer: {
-    flex: 1,
-    marginRight: 10,
-  },
-  toggleContainer: {
-    flexDirection: 'row',
-    backgroundColor: '#f3f4f6',
+    alignItems: 'center',
+    backgroundColor: 'white',
+    padding: 12,
     borderRadius: 8,
-    padding: 4,
+    gap: 8,
   },
-  toggleButton: {
-    flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 6,
-    alignItems: 'center',
-  },
-  activeToggle: {
-    backgroundColor: '#0f766e',
-  },
-  toggleText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#6b7280',
-  },
-  activeToggleText: {
-    color: 'white',
-  },
-  selectedProductsContainer: {
-    marginTop: 12,
-  },
-  selectedProductItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#f0fdfa',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 6,
-    marginBottom: 8,
-  },
-  selectedProductText: {
+  locationText: {
     fontSize: 14,
-    color: '#0f766e',
-    fontWeight: '500',
+    color: '#10b981',
+  },
+  locationTextPending: {
+    color: '#9ca3af',
   },
   submitButton: {
-    backgroundColor: '#0f766e',
-    paddingVertical: 16,
     borderRadius: 8,
-    alignItems: 'center',
+    overflow: 'hidden',
     marginBottom: 30,
+    marginTop: 10,
+  },
+  submitButtonGradient: {
+    paddingVertical: 16,
+    alignItems: 'center',
   },
   submitButtonText: {
     fontSize: 16,
     fontWeight: 'bold',
     color: 'white',
-  },
-  modalContainer: {
-    flex: 1,
-    backgroundColor: 'white',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: 50,
-    paddingBottom: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
-  },
-  modalCloseText: {
-    fontSize: 16,
-    color: '#6b7280',
-  },
-  modalDoneText: {
-    fontSize: 16,
-    color: '#0f766e',
-    fontWeight: '600',
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#1f2937',
-  },
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f8fafc',
-    marginHorizontal: 20,
-    marginVertical: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 16,
-    color: '#374151',
-    marginLeft: 8,
-  },
-  personList: {
-    flex: 1,
-    paddingHorizontal: 20,
-  },
-  personItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
-  },
-  personImage: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    marginRight: 12,
-  },
-  personInfo: {
-    flex: 1,
-  },
-  personName: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#1f2937',
-    marginBottom: 2,
-  },
-  personTitle: {
-    fontSize: 14,
-    color: '#6b7280',
-    marginBottom: 2,
-  },
-  personSpecialty: {
-    fontSize: 12,
-    color: '#9ca3af',
-  },
-  productList: {
-    flex: 1,
-    paddingHorizontal: 20,
-  },
-  productItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
-  },
-  selectedProduct: {
-    backgroundColor: '#f0fdfa',
-  },
-  productInfo: {
-    flex: 1,
-  },
-  productName: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#1f2937',
-    marginBottom: 2,
-  },
-  productType: {
-    fontSize: 14,
-    color: '#6b7280',
-  },
-  previewContent: {
-    flex: 1,
-    paddingHorizontal: 20,
-  },
-  previewSection: {
-    marginBottom: 16,
-  },
-  previewLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#374151',
-    marginBottom: 4,
-  },
-  previewValue: {
-    fontSize: 16,
-    color: '#1f2937',
-  },
-  continueButton: {
-    backgroundColor: '#0f766e',
-    paddingVertical: 16,
-    marginHorizontal: 20,
-    marginBottom: 30,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  continueButtonText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: 'white',
-  },
-  disabledInputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#f3f4f6',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-  },
-  disabledInputText: {
-    fontSize: 16,
-    color: '#6b7280',
-    flex: 1,
   },
 });

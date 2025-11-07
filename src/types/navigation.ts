@@ -6,7 +6,7 @@ export type RootStackParamList = {
   DoctorChemistList: { listType?: 'doctors' | 'chemists' | 'both' };
   DoctorProfile: { doctorId: string };
   ChemistProfile: { chemistId: string };
-  DCRForm: undefined;
+  DCRForm: { planData: any } | undefined;
   ExpenseOverview: undefined;
   ExpenseFlow: { 
     viewMode: 'daily' | 'weekly' | 'monthly' | 'q1' | 'q2' | 'q3' | 'q4' | '6months' | 'yearly';
@@ -14,7 +14,7 @@ export type RootStackParamList = {
   };
   Calendar: undefined;
   Notifications: undefined;
-  SetReminder: undefined;
+  SetReminder: { onSubmit?: (data: any) => void } | undefined;
   DCR: undefined;
   Reports: undefined;
   MasterList: undefined;

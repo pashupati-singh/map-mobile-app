@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -11,21 +11,27 @@ import {
   Modal,
   TextInput,
   Switch,
+  KeyboardAvoidingView,
+  Platform,
+  Keyboard,
+  BackHandler,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
 import SearchComponent from '../components/SearchComponent';
 import SuccessToast from '../components/SuccessToast';
 import CustomLoader from '../components/CustomLoader';
+import ButtonLoader from '../components/ButtonLoader';
 import { gqlFetch } from '../api/graphql';
 import { DOCTORS_QUERY } from '../graphql/query/doctors';
 import { CHEMISTS_QUERY } from '../graphql/query/chemists';
 import { CREATE_DAILY_PLAN_MUTATION } from '../graphql/mutation/dailyPlan';
 import { LoginManager } from '../utils/LoginManager';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { DailyPlansCache } from '../utils/DailyPlansCache';
 
 interface Doctor {
   id: string;
@@ -64,7 +70,8 @@ export default function DailyPlansForm() {
   const [showToast, setShowToast] = useState(false);
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [chemists, setChemists] = useState<Chemist[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loadingDoctors, setLoadingDoctors] = useState(false);
+  const [loadingChemists, setLoadingChemists] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   
   // Step 2 states
@@ -106,13 +113,24 @@ export default function DailyPlansForm() {
     return images[Math.abs(hash) % images.length];
   };
 
-  // Load doctors data
-  const loadDoctors = async () => {
+  // Load doctors data with cache
+  const loadDoctors = async (useCache: boolean = true) => {
     try {
-      setLoading(true);
+      setLoadingDoctors(true);
+      
+      // Check cache first
+      if (useCache) {
+        const cachedDoctors = await DailyPlansCache.getDoctors<Doctor[]>();
+        if (cachedDoctors) {
+          setDoctors(cachedDoctors);
+          setLoadingDoctors(false);
+          return;
+        }
+      }
+
       const token = await AsyncStorage.getItem('authToken');
       if (!token) {
-        setLoading(false);
+        setLoadingDoctors(false);
         return;
       }
 
@@ -150,22 +168,35 @@ export default function DailyPlansForm() {
           profileImage: getDummyProfileImage(doc.doctor.name, 'doctor'),
         }));
         setDoctors(transformedDoctors);
+        // Cache the data
+        await DailyPlansCache.setDoctors(transformedDoctors);
       }
     } catch (error) {
       console.error('Error loading doctors:', error);
       Alert.alert('Error', 'Failed to load doctors. Please try again.');
     } finally {
-      setLoading(false);
+      setLoadingDoctors(false);
     }
   };
 
-  // Load chemists data
-  const loadChemists = async () => {
+  // Load chemists data with cache
+  const loadChemists = async (useCache: boolean = true) => {
     try {
-      setLoading(true);
+      setLoadingChemists(true);
+      
+      // Check cache first
+      if (useCache) {
+        const cachedChemists = await DailyPlansCache.getChemists<Chemist[]>();
+        if (cachedChemists) {
+          setChemists(cachedChemists);
+          setLoadingChemists(false);
+          return;
+        }
+      }
+
       const token = await AsyncStorage.getItem('authToken');
       if (!token) {
-        setLoading(false);
+        setLoadingChemists(false);
         return;
       }
 
@@ -202,23 +233,55 @@ export default function DailyPlansForm() {
           profileImage: getDummyProfileImage(chem.chemist.name, 'chemist'),
         }));
         setChemists(transformedChemists);
+        // Cache the data
+        await DailyPlansCache.setChemists(transformedChemists);
       }
     } catch (error) {
       console.error('Error loading chemists:', error);
       Alert.alert('Error', 'Failed to load chemists. Please try again.');
     } finally {
-      setLoading(false);
+      setLoadingChemists(false);
     }
   };
 
-  // Load data when form opens and when tab changes
+  // Load both doctors and chemists in parallel when form opens
   useEffect(() => {
-    if (activeTab === 'doctor') {
-      loadDoctors();
-    } else {
-      loadChemists();
-    }
-  }, [activeTab]);
+    const loadAllData = async () => {
+      // Load both queries in parallel
+      await Promise.all([
+        loadDoctors(),
+        loadChemists(),
+      ]);
+    };
+
+    loadAllData();
+  }, []); // Only run once on mount
+
+  // Handle Android back button
+  useEffect(() => {
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (step === 2) {
+        // If on step 2, go back to step 1
+        Keyboard.dismiss();
+        setStep(1);
+        return true; // Prevent default back behavior
+      }
+      // If on step 1, allow default back behavior (go to home)
+      return false;
+    });
+
+    return () => backHandler.remove();
+  }, [step]);
+
+  // Clear cache when component unmounts or user leaves the page
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        // Clear cache when leaving the page
+        DailyPlansCache.clearAll();
+      };
+    }, [])
+  );
 
   const toggleSelection = (id: string) => {
     if (activeTab === 'doctor') {
@@ -250,12 +313,16 @@ export default function DailyPlansForm() {
   };
 
   const handleBackToStep1 = () => {
+    Keyboard.dismiss();
     setStep(1);
   };
 
   const handleCreateDailyPlan = async () => {
     try {
-      // Validate ABM selection if workTogether is true
+      // Dismiss keyboard
+      Keyboard.dismiss();
+      
+      // Validate ABM selection ONLY if workTogether is true
       if (workTogether && !selectedABMId) {
         Alert.alert('ABM Required', 'Please select an ABM when "Work With Manager" is enabled.');
         return;
@@ -293,7 +360,6 @@ export default function DailyPlansForm() {
           message: string;
         };
       };
-
       const response = await gqlFetch<CreateDailyPlanResponse>(
         CREATE_DAILY_PLAN_MUTATION,
         {
@@ -302,7 +368,7 @@ export default function DailyPlansForm() {
             chemistCompanyIds: selectedChemists.map(id => parseInt(id)),
             planDate: formatDateForAPI(planDate),
             notes: notes || '',
-            abmId: abmId,
+            abmId: selectedABMId,
             workTogether: workTogether,
           },
         },
@@ -310,6 +376,8 @@ export default function DailyPlansForm() {
       );
 
       if (response.createDailyPlan.success) {
+        // Clear cache after successful creation
+        await DailyPlansCache.clearAll();
         setShowToast(true);
         setTimeout(() => {
           setShowToast(false);
@@ -326,7 +394,9 @@ export default function DailyPlansForm() {
     }
   };
 
-  const handleToastHide = () => {
+  const handleToastHide = async () => {
+    // Clear cache before going back
+    await DailyPlansCache.clearAll();
     setShowToast(false);
     navigation.goBack();
   };
@@ -358,12 +428,7 @@ export default function DailyPlansForm() {
       
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity 
-          onPress={step === 1 ? () => navigation.goBack() : handleBackToStep1} 
-          style={styles.backButton}
-        >
-          <Ionicons name="arrow-back" size={24} color="#374151" />
-        </TouchableOpacity>
+        <View style={styles.backButton} />
         <Text style={styles.headerTitle}>
           {step === 1 ? 'Daily Plans' : 'Plan Details'}
         </Text>
@@ -404,196 +469,216 @@ export default function DailyPlansForm() {
       )}
 
       {/* Content */}
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {step === 1 ? (
-          <>
-            {loading ? (
-              <View style={styles.loaderContainer}>
-                <CustomLoader size={48} color="#0f766e" />
-              </View>
-            ) : (
-              <>
-                {(activeTab === 'doctor' ? doctors : chemists).length === 0 ? (
-                  <View style={styles.emptyContainer}>
-                    <Ionicons name="document-outline" size={48} color="#9ca3af" />
-                    <Text style={styles.emptyText}>
-                      No {activeTab === 'doctor' ? 'doctors' : 'chemists'} found
-                    </Text>
-                  </View>
-                ) : (
-                  (activeTab === 'doctor' ? doctors : chemists).map((item) => (
-                    <TouchableOpacity
-                      key={item.id}
-                      style={styles.listItem}
-                      onPress={() => toggleSelection(item.id)}
-                    >
-                      <View style={styles.listItemLeft}>
-                        {item.profileImage ? (
-                          <Image source={{ uri: item.profileImage }} style={styles.listImage} />
-                        ) : (
-                          <View style={styles.defaultListImage}>
-                            <Ionicons name="person" size={24} color="#6b7280" />
-                          </View>
-                        )}
-                        <View style={styles.listItemInfo}>
-                          <Text style={styles.listItemName}>{item.name}</Text>
-                          <Text style={styles.listItemTitle}>
-                            {item.title} {activeTab === 'doctor' 
-                              ? (item as Doctor).specialty ? `• ${(item as Doctor).specialty}` : ''
-                              : (item as Chemist).shopName ? `• ${(item as Chemist).shopName}` : ''
-                            }
-                          </Text>
-                          {item.phone && (
-                            <Text style={styles.listItemPhone}>{item.phone}</Text>
-                          )}
-                        </View>
-                      </View>
-                      <View style={styles.checkboxContainer}>
-                        <View style={[
-                          styles.checkbox,
-                          ((activeTab === 'doctor' && selectedDoctors.includes(item.id)) ||
-                           (activeTab === 'chemist' && selectedChemists.includes(item.id))) && styles.checkboxChecked
-                        ]}>
-                          {((activeTab === 'doctor' && selectedDoctors.includes(item.id)) ||
-                            (activeTab === 'chemist' && selectedChemists.includes(item.id))) && (
-                            <Ionicons name="checkmark" size={16} color="white" />
-                          )}
-                        </View>
-                      </View>
-                    </TouchableOpacity>
-                  ))
-                )}
-              </>
-            )}
-          </>
-        ) : (
-          /* Step 2: Details */
-          <View style={styles.step2Container}>
-            {/* Work With Manager Toggle */}
-            <View style={styles.toggleContainer}>
-              <View style={styles.toggleLabelContainer}>
-                <Text style={styles.toggleLabel}>Work With Manager</Text>
-                <Text style={styles.toggleDescription}>
-                  Enable if you want to work together with an ABM
-                </Text>
-              </View>
-              <Switch
-                value={workTogether}
-                onValueChange={setWorkTogether}
-                trackColor={{ false: '#d1d5db', true: '#14b8a6' }}
-                thumbColor={workTogether ? '#0f766e' : '#f4f3f4'}
-              />
-            </View>
-
-            {/* ABM Selection */}
-            {workTogether && (
-              <View style={styles.abmSection}>
-                <Text style={styles.sectionLabel}>Select ABM</Text>
-                <ScrollView 
-                  style={styles.abmList}
-                  showsVerticalScrollIndicator={false}
-                >
-                  {abms.map((abm) => (
-                    <TouchableOpacity
-                      key={abm.id}
-                      style={[
-                        styles.abmItem,
-                        selectedABMId === abm.id && styles.abmItemSelected
-                      ]}
-                      onPress={() => setSelectedABMId(abm.id)}
-                    >
-                      <View style={styles.abmItemLeft}>
-                        <View style={[
-                          styles.abmRadio,
-                          selectedABMId === abm.id && styles.abmRadioSelected
-                        ]}>
-                          {selectedABMId === abm.id && (
-                            <View style={styles.abmRadioInner} />
-                          )}
-                        </View>
-                        <View style={styles.abmInfo}>
-                          <Text style={styles.abmName}>{abm.name}</Text>
-                          <Text style={styles.abmEmail}>{abm.email}</Text>
-                        </View>
-                      </View>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
-            )}
-
-            {/* Notes */}
-            <View style={styles.notesSection}>
-              <Text style={styles.sectionLabel}>Notes</Text>
-              <TextInput
-                style={styles.notesInput}
-                placeholder="Enter notes for this daily plan..."
-                placeholderTextColor="#9ca3af"
-                value={notes}
-                onChangeText={setNotes}
-                multiline
-                numberOfLines={6}
-                textAlignVertical="top"
-              />
-            </View>
+      {step === 1 ? (
+        (loadingDoctors || loadingChemists) ? (
+          <View style={styles.loaderContainer}>
+            <CustomLoader size={48} color="#0f766e" />
           </View>
-        )}
-      </ScrollView>
-
-      {/* Action Buttons */}
-      <View style={styles.actionButtons}>
-        {step === 1 ? (
-          <>
-            <TouchableOpacity style={styles.cancelButton} onPress={() => navigation.goBack()}>
-              <Text style={styles.cancelButtonText}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={styles.nextButton} 
-              onPress={handleNext}
-              disabled={selectedDoctors.length === 0 && selectedChemists.length === 0}
-            >
-              <LinearGradient
-                colors={
-                  (selectedDoctors.length === 0 && selectedChemists.length === 0) 
-                    ? ['#9ca3af', '#9ca3af']
-                    : ['#0f766e', '#14b8a6']
-                }
-                style={styles.nextButtonGradient}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-              >
-                <Text style={styles.nextButtonText}>Next</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-          </>
         ) : (
-          <>
-            <TouchableOpacity style={styles.cancelButton} onPress={handleBackToStep1}>
-              <Text style={styles.cancelButtonText}>Back</Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={styles.createButton} 
-              onPress={handleCreateDailyPlan}
-              disabled={submitting}
-            >
-              {submitting ? (
-                <View style={styles.createButtonLoading}>
-                  <CustomLoader size={24} color="#fff" />
+          <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+            <>
+              {(activeTab === 'doctor' ? doctors : chemists).length === 0 ? (
+                <View style={styles.emptyContainer}>
+                  <Ionicons name="document-outline" size={48} color="#9ca3af" />
+                  <Text style={styles.emptyText}>
+                    No {activeTab === 'doctor' ? 'doctors' : 'chemists'} found
+                  </Text>
                 </View>
               ) : (
-                <LinearGradient
-                  colors={['#0f766e', '#14b8a6']}
-                  style={styles.createButtonGradient}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                >
-                  <Text style={styles.createButtonText}>Create</Text>
-                </LinearGradient>
+                (activeTab === 'doctor' ? doctors : chemists).map((item) => (
+                  <TouchableOpacity
+                    key={item.id}
+                    style={styles.listItem}
+                    onPress={() => toggleSelection(item.id)}
+                  >
+                    <View style={styles.listItemLeft}>
+                      {item.profileImage ? (
+                        <Image source={{ uri: item.profileImage }} style={styles.listImage} />
+                      ) : (
+                        <View style={styles.defaultListImage}>
+                          <Ionicons name="person" size={24} color="#6b7280" />
+                        </View>
+                      )}
+                      <View style={styles.listItemInfo}>
+                        <Text style={styles.listItemName}>{item.name}</Text>
+                        <Text style={styles.listItemTitle}>
+                          {item.title} {activeTab === 'doctor' 
+                            ? (item as Doctor).specialty ? `• ${(item as Doctor).specialty}` : ''
+                            : (item as Chemist).shopName ? `• ${(item as Chemist).shopName}` : ''
+                          }
+                        </Text>
+                        {item.phone && (
+                          <Text style={styles.listItemPhone}>{item.phone}</Text>
+                        )}
+                      </View>
+                    </View>
+                    <View style={styles.checkboxContainer}>
+                      <View style={[
+                        styles.checkbox,
+                        ((activeTab === 'doctor' && selectedDoctors.includes(item.id)) ||
+                         (activeTab === 'chemist' && selectedChemists.includes(item.id))) && styles.checkboxChecked
+                      ]}>
+                        {((activeTab === 'doctor' && selectedDoctors.includes(item.id)) ||
+                          (activeTab === 'chemist' && selectedChemists.includes(item.id))) && (
+                          <Ionicons name="checkmark" size={16} color="white" />
+                        )}
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                ))
               )}
-            </TouchableOpacity>
-          </>
-        )}
-      </View>
+            </>
+          </ScrollView>
+        )
+      ) : (
+        /* Step 2: Details with KeyboardAvoidingView */
+        <KeyboardAvoidingView
+          style={styles.keyboardContainer}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+        >
+          <ScrollView 
+            style={styles.content} 
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            <View style={styles.step2Container}>
+              {/* Work With Manager Toggle */}
+              <View style={styles.toggleContainer}>
+                <View style={styles.toggleLabelContainer}>
+                  <Text style={styles.toggleLabel}>Work With Manager</Text>
+                  <Text style={styles.toggleDescription}>
+                    Enable if you want to work together with an ABM
+                  </Text>
+                </View>
+                <Switch
+                  value={workTogether}
+                  onValueChange={setWorkTogether}
+                  trackColor={{ false: '#d1d5db', true: '#14b8a6' }}
+                  thumbColor={workTogether ? '#0f766e' : '#f4f3f4'}
+                />
+              </View>
+
+              {/* ABM Selection */}
+              {workTogether && (
+                <View style={styles.abmSection}>
+                  <Text style={styles.sectionLabel}>Select ABM</Text>
+                  <ScrollView 
+                    style={styles.abmList}
+                    showsVerticalScrollIndicator={false}
+                  >
+                    {abms.map((abm) => (
+                      <TouchableOpacity
+                        key={abm.id}
+                        style={[
+                          styles.abmItem,
+                          selectedABMId === abm.id && styles.abmItemSelected
+                        ]}
+                        onPress={() => {
+                          Keyboard.dismiss();
+                          setSelectedABMId(abm.id);
+                        }}
+                      >
+                        <View style={styles.abmItemLeft}>
+                          <View style={[
+                            styles.abmRadio,
+                            selectedABMId === abm.id && styles.abmRadioSelected
+                          ]}>
+                            {selectedABMId === abm.id && (
+                              <View style={styles.abmRadioInner} />
+                            )}
+                          </View>
+                          <View style={styles.abmInfo}>
+                            <Text style={styles.abmName}>{abm.name}</Text>
+                            <Text style={styles.abmEmail}>{abm.email}</Text>
+                          </View>
+                        </View>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
+
+              {/* Notes */}
+              <View style={styles.notesSection}>
+                <Text style={styles.sectionLabel}>Notes</Text>
+                <TextInput
+                  style={styles.notesInput}
+                  placeholder="Enter notes for this daily plan..."
+                  placeholderTextColor="#9ca3af"
+                  value={notes}
+                  onChangeText={setNotes}
+                  multiline
+                  numberOfLines={6}
+                  textAlignVertical="top"
+                />
+              </View>
+
+              {/* Action Buttons for Step 2 - Inside ScrollView */}
+              <View style={styles.step2ActionButtons}>
+                <TouchableOpacity 
+                  style={styles.createButtonFullWidth} 
+                  onPress={handleCreateDailyPlan}
+                  disabled={submitting}
+                >
+                  {submitting ? (
+                    <LinearGradient
+                      colors={['#0f766e', '#14b8a6']}
+                      style={styles.createButtonGradient}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                    >
+                      <ButtonLoader size={20} variant="white" />
+                    </LinearGradient>
+                  ) : (
+                    <LinearGradient
+                      colors={['#0f766e', '#14b8a6']}
+                      style={styles.createButtonGradient}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                    >
+                      <Text style={styles.createButtonText}>Create</Text>
+                    </LinearGradient>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      )}
+
+      {/* Action Buttons for Step 1 - Outside ScrollView */}
+      {step === 1 && (
+        <View style={styles.actionButtons}>
+          <TouchableOpacity 
+            style={styles.cancelButton} 
+            onPress={async () => {
+              await DailyPlansCache.clearAll();
+              navigation.goBack();
+            }}
+          >
+            <Text style={styles.cancelButtonText}>Cancel</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.nextButton} 
+            onPress={handleNext}
+            disabled={selectedDoctors.length === 0 && selectedChemists.length === 0}
+          >
+            <LinearGradient
+              colors={
+                (selectedDoctors.length === 0 && selectedChemists.length === 0) 
+                  ? ['#9ca3af', '#9ca3af']
+                  : ['#0f766e', '#14b8a6']
+              }
+              style={styles.nextButtonGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+            >
+              <Text style={styles.nextButtonText}>Next</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Search Component */}
       {step === 1 && (
@@ -619,6 +704,9 @@ export default function DailyPlansForm() {
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
+  },
+  keyboardContainer: {
     flex: 1,
   },
   header: {
@@ -729,7 +817,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 60,
   },
   emptyContainer: {
     flex: 1,
@@ -994,7 +1081,20 @@ const styles = StyleSheet.create({
     color: '#6b7280',
   },
   notesSection: {
+    marginBottom: 24,
+  },
+  step2ActionButtons: {
+    flexDirection: 'row',
+    paddingHorizontal: 0,
+    paddingVertical: 20,
+    gap: 12,
+    marginTop: 8,
     marginBottom: 20,
+  },
+  createButtonFullWidth: {
+    width: '100%',
+    borderRadius: 12,
+    overflow: 'hidden',
   },
   notesInput: {
     backgroundColor: 'white',

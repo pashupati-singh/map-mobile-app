@@ -155,6 +155,11 @@ export default function App() {
             options={{ headerShown: false }}
           />
           <Stack.Screen 
+            name="DCR" 
+            component={DCRScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen 
             name="DCRForm" 
             component={DCRFormScreen}
             options={{ headerShown: false }}
@@ -183,7 +188,7 @@ export default function App() {
             name="SetReminder" 
             component={SetReminderForm}
             options={{ headerShown: false , statusBarStyle: 'dark',          // iOS + Android
-              statusBarTranslucent: true,      // Android
+              statusBarTranslucent: true, 
               statusBarBackgroundColor: 'transparent', }}
           />
           
