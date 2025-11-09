@@ -306,7 +306,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   planCard: {
-    backgroundColor: 'white',
+    backgroundColor: '#fff6ef',
     borderRadius: 16,
     padding: 14,
     width: 320,

@@ -17,6 +17,8 @@ export type RootStackParamList = {
   SetReminder: { onSubmit?: (data: any) => void } | undefined;
   DCR: undefined;
   Reports: undefined;
+  ReportsMore: undefined;
+  QuickActionEditor: undefined;
   MasterList: undefined;
 };
 

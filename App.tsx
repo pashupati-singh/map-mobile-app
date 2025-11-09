@@ -18,6 +18,8 @@ import CalendarScreen from './src/screens/CalendarScreen';
 import NotificationsScreen from './src/screens/NotificationsScreen';
 import { SetReminderForm } from './src/forms';
 import DCRScreen from './src/screens/DCRScreen';
+import ReportsMoreScreen from './src/screens/ReportsMoreScreen';
+import QuickActionEditorScreen from './src/screens/QuickActionEditorScreen';
 import SuccessNotification from './src/components/SuccessNotification';
 import { LoginManager } from './src/utils/LoginManager';
 import { UserDataManager } from './src/utils/UserDataManager';
@@ -190,6 +192,16 @@ export default function App() {
             options={{ headerShown: false , statusBarStyle: 'dark',          // iOS + Android
               statusBarTranslucent: true, 
               statusBarBackgroundColor: 'transparent', }}
+          />
+          <Stack.Screen 
+            name="ReportsMore" 
+            component={ReportsMoreScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen 
+            name="QuickActionEditor" 
+            component={QuickActionEditorScreen}
+            options={{ headerShown: false }}
           />
           
         </Stack.Navigator>

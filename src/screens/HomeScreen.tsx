@@ -25,6 +25,7 @@ import { LoginManager } from '../utils/LoginManager';
 import { SetReminderForm } from '../forms';
 import { ReminderManager, UserReminder } from '../utils/ReminderManager';
 import { createSearchSuggestions, SearchSuggestion } from '../utils/SearchSuggestions';
+import { QuickActionManager, QuickActionItem } from '../utils/QuickActionManager';
 import { gqlFetch } from '../api/graphql';
 import { HOME_PAGE_QUERY } from '../graphql/query/home';
 import { CREATE_REMINDAR_MUTATION } from '../graphql/mutation/reminder';
@@ -56,6 +57,8 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
   const [pressedServiceId, setPressedServiceId] = useState<string | null>(null);
   const [pressedDcrId, setPressedDcrId] = useState<string | null>(null);
   const [pressedReportsId, setPressedReportsId] = useState<string | null>(null);
+  const [quickActionItems, setQuickActionItems] = useState<QuickActionItem[]>([]);
+  const [userId, setUserId] = useState<string>('');
 
   const handleCreateDailyPlan = () => {
     navigation.navigate('DailyPlansForm');
@@ -69,13 +72,123 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
     navigation.navigate('ChemistProfile', { chemistId });
   };
 
+  const handleReminderAction = () => {
+    navigation.navigate('SetReminder', { onSubmit: handleReminderSubmit });
+  };
 
+  // All available quick action options
+  const getAllQuickActionOptions = (): QuickActionItem[] => {
+    return [
+      // DCR Options
+      {
+        id: 'daily-plan',
+        title: 'Daily Plan',
+        icon: 'calendar-outline',
+        color: '#0f766e',
+        category: 'dcr',
+        onPress: () => navigation.navigate('DailyPlansForm'),
+      },
+      {
+        id: 'call-report',
+        title: 'Call Report',
+        icon: 'call-outline',
+        color: '#3b82f6',
+        category: 'dcr',
+        onPress: () => navigation.navigate('DCR'),
+      },
+      {
+        id: 'reminder',
+        title: 'Reminder',
+        icon: 'alarm-outline',
+        color: '#f59e0b',
+        category: 'dcr',
+        onPress: () => handleReminderAction(),
+      },
+      {
+        id: 'visit-plan',
+        title: 'Visit Plan',
+        icon: 'location-outline',
+        color: '#10b981',
+        category: 'dcr',
+        onPress: () => {},
+      },
+      // Reports Options
+      {
+        id: 'plan-history',
+        title: 'Plan History',
+        icon: 'time-outline',
+        color: '#6366f1',
+        category: 'report',
+        onPress: () => {},
+      },
+      {
+        id: 'average-call',
+        title: 'Average Call',
+        icon: 'stats-chart-outline',
+        color: '#f97316',
+        category: 'report',
+        onPress: () => {},
+      },
+      {
+        id: 'visiting-history',
+        title: 'Visiting History',
+        icon: 'location-outline',
+        color: '#06b6d4',
+        category: 'report',
+        onPress: () => {},
+      },
+      {
+        id: 'upcoming-events',
+        title: 'Upcoming Events',
+        icon: 'calendar-outline',
+        color: '#8b5cf6',
+        category: 'report',
+        onPress: () => {},
+      },
+      {
+        id: 'old-reminders',
+        title: 'Old Reminders',
+        icon: 'archive-outline',
+        color: '#ef4444',
+        category: 'report',
+        onPress: () => {},
+      },
+      {
+        id: 'sales',
+        title: 'Sales',
+        icon: 'trending-up-outline',
+        color: '#10b981',
+        category: 'report',
+        onPress: () => {},
+      },
+    ];
+  };
+
+  const loadQuickActions = async () => {
+    try {
+      const selectedIds = await QuickActionManager.getQuickActions();
+      const allOptions = getAllQuickActionOptions();
+      const selectedItems = allOptions.filter((item) => selectedIds.includes(item.id));
+      setQuickActionItems(selectedItems);
+    } catch (error) {
+      console.error('Error loading quick actions:', error);
+    }
+  };
 
   useEffect(() => {
     loadUserData();
     initializeSearchSuggestions();
-    loadHomePageData(); 
+    loadHomePageData();
+    loadQuickActions();
   }, []);
+
+  // Reload quick actions when screen comes into focus
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      loadQuickActions();
+    });
+    return unsubscribe;
+  }, [navigation]);
 
   const initializeSearchSuggestions = () => {
     const suggestions = createSearchSuggestions(
@@ -320,6 +433,10 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
       if (userName) setDisplayName(userName);
       if (companyName) setDisplayCompany(companyName);
 
+      // Get user ID
+      const storedUserId = await LoginManager.getStoredUserId();
+      if (storedUserId) setUserId(storedUserId);
+
       const data = await UserDataManager.getUserData();
       if (data) {
         setUserData(data);
@@ -328,10 +445,9 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
         if (data.company) setDisplayCompany(data.company);
       } else {
         // Create default user data if none exists
-        const userId = await LoginManager.getStoredUserId();
-        if (userId) {
+        if (storedUserId) {
           const defaultData = await UserDataManager.createDefaultUserData(
-            userId,
+            storedUserId,
             'user@medicmap.com'
           );
           setUserData(defaultData);
@@ -376,6 +492,16 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
   const handleSetNewMPIN = () => {
     setShowSidebar(false);
     Alert.alert('Set New MPIN', 'MPIN setup functionality will be implemented');
+  };
+
+  const handleUpdateProfile = () => {
+    setShowSidebar(false);
+    Alert.alert('Update Profile', 'Profile update functionality will be implemented');
+  };
+
+  const handleContactUs = () => {
+    setShowSidebar(false);
+    Alert.alert('Contact Us', 'Contact us functionality will be implemented');
   };
 
   const serviceCategories = [
@@ -462,32 +588,32 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
 
   const reportsCategories = [
     {
-      id: 'call-report',
-      title: 'Call Report',
-      icon: 'call-outline',
-      color: '#3b82f6', // Blue for call report
-      onPress: () => navigation.navigate('DCR'),
-    },
-    {
-      id: 'daily-plan-report',
-      title: 'Daily Plan Report',
-      icon: 'document-outline',
-      color: '#f59e0b', // Amber for daily plan report
+      id: 'plan-history',
+      title: 'Plan History',
+      icon: 'time-outline',
+      color: '#6366f1', // Indigo for plan history - professional and distinct
       onPress: () => {},
     },
     {
-      id: 'view-all',
-      title: 'View All',
-      icon: 'eye-outline',
-      color: '#10b981', // Green for view all
+      id: 'average-call',
+      title: 'Average Call',
+      icon: 'stats-chart-outline',
+      color: '#f97316', // Orange for average call statistics - warm and distinct
       onPress: () => {},
     },
     {
-      id: 'analytics',
-      title: 'Analytics',
-      icon: 'analytics-outline',
-      color: '#8b5cf6', // Purple for analytics
+      id: 'visiting-history',
+      title: 'Visiting History',
+      icon: 'location-outline',
+      color: '#06b6d4', // Cyan for visiting history - fresh and distinct
       onPress: () => {},
+    },
+    {
+      id: 'more',
+      title: 'More',
+      icon: 'ellipsis-horizontal-outline',
+      color: '#64748b', // Slate for more options - professional neutral
+      onPress: () => navigation.navigate('ReportsMore'),
     },
   ];
 
@@ -506,10 +632,6 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
       </View>
     );
   }
-
-  const handleReminderAction = () => {
-    navigation.navigate('SetReminder', { onSubmit: handleReminderSubmit });
-  };
 
   const handleReminderSubmit = async (data: any) => {
     try {
@@ -656,36 +778,54 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
 
         {/* Quick Action */}
         <View style={styles.serviceSection}>
-          <Text style={styles.sectionTitle}>Quick Action</Text>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Quick Action</Text>
+            <TouchableOpacity
+              style={styles.editButton}
+              onPress={() => navigation.navigate('QuickActionEditor')}
+            >
+              <Ionicons name="create-outline" size={20} color="#0f766e" />
+            </TouchableOpacity>
+          </View>
           <View style={styles.serviceContainer}>
-            <View style={styles.serviceGrid}>
-              {serviceCategories.map((service) => {
-                const isPressed = pressedServiceId === service.id;
-                const iconBackgroundColor = isPressed ? '#0f766e' : service.color;
-                const iconColor = isPressed ? 'white' : 'white';
-                
-                return (
-                  <TouchableOpacity
-                    key={service.id}
-                    style={styles.serviceCard}
-                    onPressIn={() => setPressedServiceId(service.id)}
-                    onPressOut={() => setPressedServiceId(null)}
-                    onPress={() => {
-                      setPressedServiceId(null);
-                      Alert.alert(service.title, `${service.title} functionality will be implemented`);
-                    }}
-                    activeOpacity={1}
-                  >
-                    <View style={styles.serviceIconContainer}>
-                      <View style={[styles.serviceIcon, { backgroundColor: iconBackgroundColor }]}>
-                        <Ionicons name={service.icon as any} size={20} color={iconColor} />
+            {quickActionItems.length === 0 ? (
+              <View style={styles.emptyQuickAction}>
+                <Ionicons name="add-circle-outline" size={48} color="#9ca3af" />
+                <Text style={styles.emptyQuickActionText}>No Quick Actions</Text>
+                <Text style={styles.emptyQuickActionSubtext}>
+                  Tap the edit icon to add Quick Actions
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.serviceGrid}>
+                {quickActionItems.map((service) => {
+                  const isPressed = pressedServiceId === service.id;
+                  const iconBackgroundColor = isPressed ? '#0f766e' : service.color;
+                  const iconColor = isPressed ? 'white' : 'white';
+                  
+                  return (
+                    <TouchableOpacity
+                      key={service.id}
+                      style={styles.serviceCard}
+                      onPressIn={() => setPressedServiceId(service.id)}
+                      onPressOut={() => setPressedServiceId(null)}
+                      onPress={() => {
+                        setPressedServiceId(null);
+                        service.onPress();
+                      }}
+                      activeOpacity={1}
+                    >
+                      <View style={styles.serviceIconContainer}>
+                        <View style={[styles.serviceIcon, { backgroundColor: iconBackgroundColor }]}>
+                          <Ionicons name={service.icon as any} size={20} color={iconColor} />
+                        </View>
                       </View>
-                    </View>
-                    <Text style={styles.serviceTitle}>{service.title}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+                      <Text style={styles.serviceTitle}>{service.title}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
           </View>
         </View>
 
@@ -826,12 +966,17 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
             key={item.id}
             style={[styles.navItem, item.active && styles.activeNavItem]}
             onPress={() => {
-              if (item.id === 'expense') {
+              if (item.id === 'home') {
+                // Already on Home screen, do nothing
+                return;
+              } else if (item.id === 'report') {
+                navigation.navigate('ReportsMore');
+              } else if (item.id === 'dcr') {
+                navigation.navigate('DCR');
+              } else if (item.id === 'expense') {
                 navigation.navigate('ExpenseOverview');
               } else if (item.id === 'calendar') {
                 navigation.navigate('Calendar');
-              } else {
-                Alert.alert(item.title, `${item.title} functionality will be implemented`);
               }
             }}
           >
@@ -851,11 +996,33 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
       <UserProfileSidebar
         visible={showSidebar}
         onClose={() => setShowSidebar(false)}
-        userData={userData || { id: '', name: displayName, email: '', company: displayCompany, role: 'MR', isEmailVerified: false, hasMPIN: false }}
+        userData={userData ? {
+          id: userData.id,
+          name: userData.name,
+          role: userData.role,
+          email: userData.email,
+          company: userData.company,
+          profileImage: userData.profileImage,
+          monthlyTarget: userData.monthlyTarget,
+          monthlySale: userData.monthlySale,
+          remainingDays: userData.remainingDays,
+        } : { 
+          id: userId, 
+          name: displayName, 
+          email: '', 
+          company: displayCompany, 
+          role: 'MR'
+        }}
         onLogout={handleLogout}
         onChangePassword={handleChangePassword}
         onVerifyEmail={handleVerifyEmail}
         onSetNewMPIN={handleSetNewMPIN}
+        onUpdateProfile={handleUpdateProfile}
+        onContactUs={handleContactUs}
+        onProfileImageUpdate={async (imageUri: string) => {
+          // Reload user data to get updated profile image
+          await loadUserData();
+        }}
       />
     </View>
   );
@@ -890,6 +1057,9 @@ const styles = StyleSheet.create({
     paddingTop: 50,
     paddingBottom: 40,
     paddingHorizontal: 20,
+    borderBottomLeftRadius: 25,
+    borderBottomRightRadius: 25,
+    overflow: 'hidden',
   },
   headerTop: {
     flexDirection: 'row',
@@ -1048,12 +1218,37 @@ const styles = StyleSheet.create({
     lineHeight: 14,
     flexWrap: 'wrap',
   },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
     color: '#1f2937',
-    marginBottom: 16,
     letterSpacing: 0.5,
+  },
+  editButton: {
+    padding: 4,
+  },
+  emptyQuickAction: {
+    padding: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyQuickActionText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#6b7280',
+    marginTop: 12,
+  },
+  emptyQuickActionSubtext: {
+    fontSize: 14,
+    color: '#9ca3af',
+    marginTop: 4,
+    textAlign: 'center',
   },
   masterListSection: {
     marginBottom: 20,
@@ -1349,12 +1544,6 @@ const styles = StyleSheet.create({
   },
   popularSection: {
     marginBottom: 20,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
   },
   seeAllText: {
     fontSize: 16,

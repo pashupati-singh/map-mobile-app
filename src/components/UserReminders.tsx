@@ -8,7 +8,6 @@ import {
   TouchableOpacity,
   Alert,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { ReminderManager, UserReminder } from '../utils/ReminderManager';
 
@@ -138,12 +137,7 @@ export default function UserReminders({ reminders, onReminderUpdate }: UserRemin
             key={reminder.id}
             style={[styles.cardContainer, { width: CARD_WIDTH }]}
           >
-            <LinearGradient
-              colors={['#0f766e', '#14b8a6']}
-              style={styles.card}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-            >
+            <View style={styles.card}>
               <View style={styles.reminderContent}>
                 <Text style={styles.reminderHeading} numberOfLines={1} ellipsizeMode="tail">
                   {reminder.heading}
@@ -158,7 +152,7 @@ export default function UserReminders({ reminders, onReminderUpdate }: UserRemin
                   Created on {formatDate(reminder.createdAt)}
                 </Text>
               </View>
-            </LinearGradient>
+            </View>
           </View>
         ))}
       </ScrollView>
@@ -245,6 +239,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   card: {
+    backgroundColor: '#fff6ef',
     borderRadius: 16,
     padding: 14,
     height: 200,
@@ -306,22 +301,22 @@ const styles = StyleSheet.create({
   reminderHeading: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: 'white',
+    color: '#0f766e',
     marginBottom: 8,
   },
   reminderMessage: {
     fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.9)',
+    color: '#374151',
     lineHeight: 20,
   },
   cardFooter: {
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.2)',
+    borderTopColor: 'rgba(15, 118, 110, 0.2)',
     paddingTop: 12,
   },
   createdText: {
     fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.7)',
+    color: '#6b7280',
     textAlign: 'center',
     fontStyle: 'italic',
   },

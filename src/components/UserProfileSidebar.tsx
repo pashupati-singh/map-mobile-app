@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -9,9 +9,13 @@ import {
   Animated,
   Dimensions,
   ScrollView,
+  Platform,
+  Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
+import { UserDataManager } from '../utils/UserDataManager';
 
 const { width } = Dimensions.get('window');
 
@@ -19,6 +23,7 @@ interface UserProfileSidebarProps {
   visible: boolean;
   onClose: () => void;
   userData: {
+    id: string;
     name: string;
     role: string;
     email: string;
@@ -32,6 +37,9 @@ interface UserProfileSidebarProps {
   onChangePassword: () => void;
   onVerifyEmail: () => void;
   onSetNewMPIN: () => void;
+  onProfileImageUpdate?: (imageUri: string) => void;
+  onUpdateProfile?: () => void;
+  onContactUs?: () => void;
 }
 
 export default function UserProfileSidebar({
@@ -42,8 +50,14 @@ export default function UserProfileSidebar({
   onChangePassword,
   onVerifyEmail,
   onSetNewMPIN,
+  onProfileImageUpdate,
+  onUpdateProfile,
+  onContactUs,
 }: UserProfileSidebarProps) {
   const slideAnim = React.useRef(new Animated.Value(-width)).current;
+  const [showImagePicker, setShowImagePicker] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<string | null>(userData.profileImage || null);
+  const slideUpAnim = React.useRef(new Animated.Value(300)).current;
 
   React.useEffect(() => {
     if (visible) {
@@ -61,30 +75,124 @@ export default function UserProfileSidebar({
     }
   }, [visible]);
 
+  React.useEffect(() => {
+    if (showImagePicker) {
+      Animated.timing(slideUpAnim, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      Animated.timing(slideUpAnim, {
+        toValue: 300,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [showImagePicker]);
+
+  React.useEffect(() => {
+    setSelectedImage(userData.profileImage || null);
+  }, [userData.profileImage]);
+
+  const requestPermissions = async () => {
+    if (Platform.OS !== 'web') {
+      const { status: cameraStatus } = await ImagePicker.requestCameraPermissionsAsync();
+      const { status: libraryStatus } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      
+      if (cameraStatus !== 'granted' || libraryStatus !== 'granted') {
+        Alert.alert(
+          'Permissions Required',
+          'Camera and photo library permissions are required to change your profile picture.'
+        );
+        return false;
+      }
+    }
+    return true;
+  };
+
+  const handleImagePicker = async (source: 'camera' | 'gallery') => {
+    const hasPermission = await requestPermissions();
+    if (!hasPermission) return;
+
+    setShowImagePicker(false);
+
+    try {
+      let result: ImagePicker.ImagePickerResult;
+
+      if (source === 'camera') {
+        result = await ImagePicker.launchCameraAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsEditing: true,
+          aspect: [1, 1],
+          quality: 0.8,
+        });
+      } else {
+        result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsEditing: true,
+          aspect: [1, 1],
+          quality: 0.8,
+        });
+      }
+
+      if (!result.canceled && result.assets[0]) {
+        const imageUri = result.assets[0].uri;
+        setSelectedImage(imageUri);
+        
+        // Update user data
+        try {
+          await UserDataManager.updateUserData({ profileImage: imageUri });
+          onProfileImageUpdate?.(imageUri);
+        } catch (error) {
+          console.error('Error updating profile image:', error);
+          Alert.alert('Error', 'Failed to update profile image. Please try again.');
+          // Reset image if update failed
+          setSelectedImage(userData.profileImage || null);
+        }
+      }
+    } catch (error) {
+      console.error('Error picking image:', error);
+      Alert.alert('Error', 'Failed to pick image. Please try again.');
+    }
+  };
+
   const menuItems = [
     {
-      id: 'my-saved',
-      title: 'My Saved',
-      icon: 'heart-outline',
-      onPress: () => {},
+      id: 'update-profile',
+      title: 'Update Profile',
+      icon: 'person-outline',
+      onPress: () => {
+        onUpdateProfile?.();
+        onClose();
+      },
     },
     {
-      id: 'appointment',
-      title: 'Appointment',
-      icon: 'document-outline',
-      onPress: () => {},
+      id: 'set-mpin',
+      title: 'Set MPIN',
+      icon: 'lock-closed-outline',
+      onPress: () => {
+        onSetNewMPIN();
+        onClose();
+      },
     },
     {
-      id: 'payment-method',
-      title: 'Payment Method',
-      icon: 'wallet-outline',
-      onPress: () => {},
+      id: 'change-password',
+      title: 'Change Password',
+      icon: 'key-outline',
+      onPress: () => {
+        onChangePassword();
+        onClose();
+      },
     },
     {
-      id: 'faqs',
-      title: 'FAQs',
-      icon: 'chatbubble-outline',
-      onPress: () => {},
+      id: 'contact-us',
+      title: 'Contact Us',
+      icon: 'mail-outline',
+      onPress: () => {
+        onContactUs?.();
+        onClose();
+      },
     },
     {
       id: 'logout',
@@ -123,19 +231,17 @@ export default function UserProfileSidebar({
             end={{ x: 1, y: 1 }}
           >
             <View style={styles.headerTop}>
+              <View style={styles.placeholder} />
               <TouchableOpacity style={styles.closeButton} onPress={onClose}>
                 <Ionicons name="close" size={24} color="#374151" />
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.moreButton}>
-                <Ionicons name="ellipsis-vertical" size={20} color="#374151" />
               </TouchableOpacity>
             </View>
             
             <View style={styles.profileSection}>
               <View style={styles.profileImageContainer}>
-                {userData.profileImage ? (
+                {selectedImage ? (
                   <Image
-                    source={{ uri: userData.profileImage }}
+                    source={{ uri: selectedImage }}
                     style={styles.profileImage}
                   />
                 ) : (
@@ -143,7 +249,10 @@ export default function UserProfileSidebar({
                     <Ionicons name="person" size={40} color="#0f766e" />
                   </View>
                 )}
-                <TouchableOpacity style={styles.editProfileButton}>
+                <TouchableOpacity 
+                  style={styles.editProfileButton}
+                  onPress={() => setShowImagePicker(true)}
+                >
                   <Ionicons name="pencil" size={12} color="white" />
                 </TouchableOpacity>
               </View>
@@ -175,38 +284,109 @@ export default function UserProfileSidebar({
             </View>
           </LinearGradient>
 
-          <ScrollView style={styles.menuContainer}>
-            {menuItems.map((item) => (
-              <TouchableOpacity
-                key={item.id}
-                style={[
-                  styles.menuItem,
-                  item.isDestructive && styles.destructiveMenuItem,
-                ]}
-                onPress={item.onPress}
-              >
-                <Ionicons
-                  name={item.icon as any}
-                  size={24}
-                  color={item.isDestructive ? '#ef4444' : '#374151'}
-                />
-                <Text
+          <View style={styles.contentContainer}>
+            <ScrollView style={styles.menuContainer} showsVerticalScrollIndicator={false}>
+              {menuItems.map((item) => (
+                <TouchableOpacity
+                  key={item.id}
                   style={[
-                    styles.menuItemText,
-                    item.isDestructive && styles.destructiveText,
+                    styles.menuItem,
+                    item.isDestructive && styles.destructiveMenuItem,
                   ]}
+                  onPress={item.onPress}
                 >
-                  {item.title}
-                </Text>
-                <Ionicons
-                  name="chevron-forward"
-                  size={20}
-                  color={item.isDestructive ? '#ef4444' : '#9ca3af'}
-                />
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
+                  <Ionicons
+                    name={item.icon as any}
+                    size={24}
+                    color={item.isDestructive ? '#ef4444' : '#374151'}
+                  />
+                  <Text
+                    style={[
+                      styles.menuItemText,
+                      item.isDestructive && styles.destructiveText,
+                    ]}
+                  >
+                    {item.title}
+                  </Text>
+                  <Ionicons
+                    name="chevron-forward"
+                    size={20}
+                    color={item.isDestructive ? '#ef4444' : '#9ca3af'}
+                  />
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
+            {/* Footer */}
+            <View style={styles.footer}>
+              <View style={styles.footerContent}>
+                <Text style={styles.footerText}>MedicMap</Text>
+                <Text style={styles.footerSubtext}>© 2024 All rights reserved</Text>
+                <Text style={styles.footerVersion}>Version 1.0.0</Text>
+              </View>
+            </View>
+          </View>
         </Animated.View>
+
+        {/* Image Picker Bottom Sheet */}
+        <Modal
+          visible={showImagePicker}
+          transparent
+          animationType="none"
+          onRequestClose={() => setShowImagePicker(false)}
+        >
+          <View style={styles.bottomSheetOverlay}>
+            <TouchableOpacity
+              style={styles.bottomSheetBackdrop}
+              activeOpacity={1}
+              onPress={() => setShowImagePicker(false)}
+            />
+            <Animated.View
+              style={[
+                styles.bottomSheet,
+                {
+                  transform: [{ translateY: slideUpAnim }],
+                },
+              ]}
+              onStartShouldSetResponder={() => true}
+            >
+              <View style={styles.bottomSheetHandle} />
+              <Text style={styles.bottomSheetTitle}>Select Profile Picture</Text>
+              
+              <TouchableOpacity
+                style={styles.bottomSheetOption}
+                onPress={() => handleImagePicker('camera')}
+                activeOpacity={0.7}
+              >
+                <View style={styles.bottomSheetOptionIcon}>
+                  <Ionicons name="camera-outline" size={24} color="#0f766e" />
+                </View>
+                <Text style={styles.bottomSheetOptionText}>Take Photo</Text>
+                <Ionicons name="chevron-forward" size={20} color="#9ca3af" />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.bottomSheetOption}
+                onPress={() => handleImagePicker('gallery')}
+                activeOpacity={0.7}
+              >
+                <View style={styles.bottomSheetOptionIcon}>
+                  <Ionicons name="images-outline" size={24} color="#0f766e" />
+                </View>
+                <Text style={styles.bottomSheetOptionText}>Choose from Gallery</Text>
+                <Ionicons name="chevron-forward" size={20} color="#9ca3af" />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.bottomSheetCancel}
+                onPress={() => setShowImagePicker(false)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.bottomSheetCancelText}>Cancel</Text>
+              </TouchableOpacity>
+            </Animated.View>
+          </View>
+        </Modal>
       </View>
     </Modal>
   );
@@ -216,13 +396,18 @@ const styles = StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    flexDirection: 'row',
-    justifyContent: 'flex-start',
   },
   backdrop: {
-    flex: 1,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
   sidebar: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
     width: width * 0.8,
     height: '100%',
     backgroundColor: 'white',
@@ -242,14 +427,14 @@ const styles = StyleSheet.create({
   },
   headerTop: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-end',
     alignItems: 'center',
     marginBottom: 20,
   },
-  closeButton: {
-    padding: 8,
+  placeholder: {
+    flex: 1,
   },
-  moreButton: {
+  closeButton: {
     padding: 8,
   },
   profileSection: {
@@ -335,6 +520,10 @@ const styles = StyleSheet.create({
     height: 40,
     backgroundColor: 'rgba(15, 118, 110, 0.2)',
   },
+  contentContainer: {
+    flex: 1,
+    flexDirection: 'column',
+  },
   menuContainer: {
     flex: 1,
     paddingTop: 20,
@@ -357,6 +546,104 @@ const styles = StyleSheet.create({
     marginLeft: 16,
   },
   destructiveText: {
+    color: '#ef4444',
+  },
+  footer: {
+    paddingTop: 20,
+    paddingBottom: 20,
+    paddingHorizontal: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
+  },
+  footerContent: {
+    alignItems: 'center',
+  },
+  footerText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#0f766e',
+    marginBottom: 4,
+  },
+  footerSubtext: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginBottom: 4,
+  },
+  footerVersion: {
+    fontSize: 11,
+    color: '#9ca3af',
+  },
+  bottomSheetOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  bottomSheetBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  bottomSheet: {
+    backgroundColor: 'white',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 40,
+    maxHeight: '50%',
+  },
+  bottomSheetHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: '#d1d5db',
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: 20,
+  },
+  bottomSheetTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1f2937',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  bottomSheetOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3f4f6',
+  },
+  bottomSheetOptionIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(15, 118, 110, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  bottomSheetOptionText: {
+    flex: 1,
+    fontSize: 16,
+    color: '#374151',
+    fontWeight: '500',
+  },
+  bottomSheetCancel: {
+    marginTop: 12,
+    paddingVertical: 16,
+    alignItems: 'center',
+    borderRadius: 12,
+    backgroundColor: '#f3f4f6',
+  },
+  bottomSheetCancelText: {
+    fontSize: 16,
+    fontWeight: '600',
     color: '#ef4444',
   },
 });

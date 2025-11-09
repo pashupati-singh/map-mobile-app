@@ -153,7 +153,7 @@ export default function TodaysReminders({ reminders }: TodaysRemindersProps) {
 
                 <View style={styles.contactSection}>
                   <View style={styles.phoneContainer}>
-                    <Ionicons name="call-outline" size={16} color="#0f766e" />
+                    <Ionicons name="call-outline" size={16} color="#6b7280" />
                     <Text style={styles.phoneText}>{reminder.phoneNumber}</Text>
                   </View>
                 </View>
@@ -278,7 +278,7 @@ const styles = StyleSheet.create({
   eventTypeText: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#0f766e',
+    color: 'black',
     marginBottom: 2,
   },
   eventDateText: {
@@ -299,7 +299,7 @@ const styles = StyleSheet.create({
     borderRadius: 30,
     marginRight: 16,
     borderWidth: 2,
-    borderColor: 'rgba(15, 118, 110, 0.2)',
+    borderColor: 'black',
   },
   defaultProfileImage: {
     width: 60,
@@ -318,7 +318,7 @@ const styles = StyleSheet.create({
   doctorName: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#1f2937',
+    color: '#0f766e',
     marginBottom: 8,
   },
   titlesContainer: {
@@ -334,7 +334,7 @@ const styles = StyleSheet.create({
   },
   titleText: {
     fontSize: 11,
-    color: '#0f766e',
+    color: '#374151',
     fontWeight: '600',
   },
   contactSection: {
@@ -343,7 +343,7 @@ const styles = StyleSheet.create({
   phoneContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(15, 118, 110, 0.1)',
+    backgroundColor: 'rgba(107, 114, 128, 0.1)',
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 6,
@@ -351,7 +351,7 @@ const styles = StyleSheet.create({
   },
   phoneText: {
     fontSize: 14,
-    color: '#0f766e',
+    color: '#374151',
     marginLeft: 6,
     fontWeight: '500',
   },
@@ -362,8 +362,8 @@ const styles = StyleSheet.create({
   },
   todayText: {
     fontSize: 14,
-    color: '#0f766e',
-    fontWeight: '600',
+    color: '#6b7280',
+    fontWeight: '500',
     textAlign: 'center',
     fontStyle: 'italic',
   },
