@@ -14,6 +14,7 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
 import { ReminderManager, UserReminder } from '../utils/ReminderManager';
+import CurvedHeader from '../components/CurvedHeader';
 
 type NotificationsScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Notifications'>;
 
@@ -222,24 +223,16 @@ export default function NotificationsScreen() {
 
   return (
     <View style={styles.container}>
-      <LinearGradient
-        colors={['#0f766e', '#14b8a6']}
-        style={styles.header}
-      >
-        <View style={styles.headerContent}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color="white" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Notifications</Text>
-          <View style={styles.headerActions}>
-            {unreadCount > 0 && (
-              <TouchableOpacity onPress={markAllAsRead} style={styles.markAllButton}>
-                <Text style={styles.markAllText}>Mark All Read</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        </View>
-      </LinearGradient>
+      <CurvedHeader
+        title="Notifications"
+        rightComponent={
+          unreadCount > 0 ? (
+            <TouchableOpacity onPress={markAllAsRead}>
+              <Text style={{ color: 'white', fontSize: 14, fontWeight: '600' }}>Mark All Read</Text>
+            </TouchableOpacity>
+          ) : undefined
+        }
+      />
 
       {/* Filter Tabs */}
       <View style={styles.filterContainer}>

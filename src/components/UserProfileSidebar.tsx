@@ -320,7 +320,7 @@ export default function UserProfileSidebar({
             {/* Footer */}
             <View style={styles.footer}>
               <View style={styles.footerContent}>
-                <Text style={styles.footerText}>MedicMap</Text>
+                <Text style={styles.footerText}>my-app</Text>
                 <Text style={styles.footerSubtext}>© 2024 All rights reserved</Text>
                 <Text style={styles.footerVersion}>Version 1.0.0</Text>
               </View>

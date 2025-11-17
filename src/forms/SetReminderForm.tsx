@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   View,
   Text,
@@ -20,6 +19,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import ButtonLoader from '../components/ButtonLoader';
+import CurvedHeader from '../components/CurvedHeader';
 
 interface ReminderFormData {
   date: Date;
@@ -34,7 +34,6 @@ interface SetReminderFormProps {
 type SetReminderFormNavigationProp = NativeStackNavigationProp<RootStackParamList, 'SetReminder'>;
 
 export default function SetReminderForm(props?: SetReminderFormProps) {
-  const insets = useSafeAreaInsets();
   const route = useRoute<RouteProp<RootStackParamList, 'SetReminder'>>();
   const { onSubmit } = props || {};
   const navigation = useNavigation<SetReminderFormNavigationProp>();
@@ -92,15 +91,9 @@ export default function SetReminderForm(props?: SetReminderFormProps) {
   };
 
   return (
-    <LinearGradient
-      colors={['#f0fdfa', '#ecfdf5', '#f0fdf4']}
-      style={styles.container}
-    >
-        <StatusBar style="dark" translucent backgroundColor="transparent" />
-        <SafeAreaView style={{ flex: 1 }}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Set Reminder</Text>
-      </View>
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+      <CurvedHeader title="Set Reminder" showBackButton={false} />
 
       <KeyboardAvoidingView 
         style={styles.keyboardContainer}
@@ -196,31 +189,17 @@ export default function SetReminderForm(props?: SetReminderFormProps) {
           }}
         />
       )}
-      </SafeAreaView>
-    </LinearGradient>
+    </View>
   );
 }
  
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#f0fdfa',
   },
   keyboardContainer: {
     flex: 1,
-  },
-  header: {
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 30,
-    paddingBottom: 20,
-  },
-  backButton: {
-    padding: 8,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#0f766e',
   },
   content: {
     flex: 1,

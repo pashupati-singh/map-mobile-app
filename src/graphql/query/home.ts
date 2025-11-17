@@ -7,6 +7,7 @@ export const HOME_PAGE_QUERY = `
             email
             phone
             dob
+            type
             anniversary
             doctor {
               name
@@ -18,6 +19,7 @@ export const HOME_PAGE_QUERY = `
             phone
             dob
             anniversary
+            type
             chemist {
               name
               titles

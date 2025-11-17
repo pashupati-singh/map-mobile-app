@@ -8,10 +8,6 @@ export type RootStackParamList = {
   ChemistProfile: { chemistId: string };
   DCRForm: { planData: any } | undefined;
   ExpenseOverview: undefined;
-  ExpenseFlow: { 
-    viewMode: 'daily' | 'weekly' | 'monthly' | 'q1' | 'q2' | 'q3' | 'q4' | '6months' | 'yearly';
-    currentDate: Date;
-  };
   Calendar: undefined;
   Notifications: undefined;
   SetReminder: { onSubmit?: (data: any) => void } | undefined;
@@ -20,6 +16,12 @@ export type RootStackParamList = {
   ReportsMore: undefined;
   QuickActionEditor: undefined;
   MasterList: undefined;
+  PlanHistory: undefined;
+  OldReminders: undefined;
+  UpcomingEvents: undefined;
+  PlanDetail: { planId: number };
+  Products: undefined;
+  ProductDetail: { productId: number };
 };
 
 declare global {

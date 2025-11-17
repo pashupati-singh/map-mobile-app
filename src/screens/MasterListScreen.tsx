@@ -11,6 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
+import CurvedHeader from '../components/CurvedHeader';
 
 type MasterListScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'MasterList'>;
 
@@ -37,13 +38,7 @@ export default function MasterListScreen() {
   return (
     <View style={styles.container}>
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={24} color="#0f766e" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Master List</Text>
-        <View style={styles.placeholder} />
-      </View>
+      <CurvedHeader title="Master List" />
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Doctor Section */}

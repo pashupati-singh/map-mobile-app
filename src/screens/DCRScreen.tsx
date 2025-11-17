@@ -16,6 +16,7 @@ import { gqlFetch } from '../api/graphql';
 import { HOME_PAGE_QUERY } from '../graphql/query/home';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import CustomLoader from '../components/CustomLoader';
+import CurvedHeader from '../components/CurvedHeader';
 import { DCRCache } from '../utils/DCRCache';
 
 type DCRScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'DCR'>;
@@ -206,14 +207,7 @@ export default function DCRScreen() {
   return (
     <View style={styles.container}>
       {/* Header */}
-      <LinearGradient
-        colors={['#0f766e', '#14b8a6']}
-        style={styles.header}
-      >
-        
-        <Text style={styles.headerTitle}>Call Reports</Text>
-        <View style={styles.placeholder} />
-      </LinearGradient>
+      <CurvedHeader title="Call Reports" />
 
       {loading ? (
         <View style={styles.loaderContainer}>

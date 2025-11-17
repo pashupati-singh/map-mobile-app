@@ -8,199 +8,173 @@ export interface SearchSuggestion {
 }
 
 export const createSearchSuggestions = (
-  onNavigateToDCR: () => void,
-  onNavigateToDCRForm: () => void,
+  onNavigateToPlanHistory: () => void,
+  onNavigateToAverageCall: () => void,
+  onNavigateToVisitingHistory: () => void,
+  onNavigateToProducts: () => void,
+  onNavigateToUpcomingEvents: () => void,
+  onNavigateToOldReminders: () => void,
+  onNavigateToSales: () => void,
   onNavigateToDailyPlans: () => void,
-  onNavigateToDailyPlansForm: () => void,
-  onNavigateToReminderForm: () => void,
-  onNavigateToExpenseOverview: () => void,
+  onNavigateToCallReports: () => void,
+  onNavigateToReminder: () => void,
+  onNavigateToVisitingPlan: () => void,
   onNavigateToDoctorList: () => void,
   onNavigateToChemistList: () => void,
-  onNavigateToMasterList: () => void,
-  onNavigateToProfile: () => void,
-  onNavigateToCalendar: () => void,
+  onNavigateToUpdateProfile: () => void,
+  onNavigateToSetMPIN: () => void,
+  onNavigateToChangePassword: () => void,
+  onNavigateToContactUs: () => void,
 ): SearchSuggestion[] => {
   return [
-    // DCR Related
+    // Reports
     {
-      id: 'dcr',
-      title: 'DCR',
-      description: 'Daily Call Report',
-      icon: 'document-outline',
-      action: onNavigateToDCR,
-      keywords: ['dcr', 'call report', 'daily call report', 'daily report']
+      id: 'plan-history',
+      title: 'Plan History',
+      description: 'View your plan history',
+      icon: 'time-outline',
+      action: onNavigateToPlanHistory,
+      keywords: ['plan history', 'history', 'plans', 'past plans']
     },
     {
-      id: 'new-call-report',
-      title: 'New Call Report',
-      description: 'Create a new call report',
-      icon: 'add-circle-outline',
-      action: onNavigateToDCRForm,
-      keywords: ['new call report', 'create call report', 'add call report']
+      id: 'average-call',
+      title: 'Average Call',
+      description: 'View average call statistics',
+      icon: 'stats-chart-outline',
+      action: onNavigateToAverageCall,
+      keywords: ['average call', 'call stats', 'statistics', 'average']
     },
     {
-      id: 'call-report',
-      title: 'Call Report',
-      description: 'Report your calls',
-      icon: 'call-outline',
-      action: onNavigateToDCRForm,
-      keywords: ['call report', 'report calls', 'meeting report']
+      id: 'visiting-history',
+      title: 'Visiting History',
+      description: 'View your visiting history',
+      icon: 'location-outline',
+      action: onNavigateToVisitingHistory,
+      keywords: ['visiting history', 'visit history', 'visits', 'locations']
+    },
+    {
+      id: 'products',
+      title: 'Products',
+      description: 'View products',
+      icon: 'cube-outline',
+      action: onNavigateToProducts,
+      keywords: ['products', 'product list', 'items']
+    },
+    {
+      id: 'upcoming-events',
+      title: 'Upcoming Events',
+      description: 'View upcoming events',
+      icon: 'calendar-outline',
+      action: onNavigateToUpcomingEvents,
+      keywords: ['upcoming events', 'events', 'upcoming', 'calendar events']
+    },
+    {
+      id: 'old-reminders',
+      title: 'Old Reminders',
+      description: 'View old reminders',
+      icon: 'archive-outline',
+      action: onNavigateToOldReminders,
+      keywords: ['old reminders', 'past reminders', 'archived reminders']
+    },
+    {
+      id: 'sales',
+      title: 'Sales',
+      description: 'View sales information',
+      icon: 'trending-up-outline',
+      action: onNavigateToSales,
+      keywords: ['sales', 'revenue', 'income', 'sales report']
     },
 
     // Daily Plans
     {
       id: 'daily-plans',
       title: 'Daily Plans',
-      description: 'View your daily plans',
+      description: 'Create and manage daily plans',
       icon: 'calendar-outline',
       action: onNavigateToDailyPlans,
-      keywords: ['daily plans', 'plans', 'schedule', 'daily schedule']
-    },
-    {
-      id: 'create-daily-plan',
-      title: 'Create Daily Plan',
-      description: 'Create a new daily plan',
-      icon: 'add-circle-outline',
-      action: onNavigateToDailyPlansForm,
-      keywords: ['create daily plan', 'new daily plan', 'add daily plan']
-    },
-    {
-      id: 'today-plan',
-      title: "Today's Plan",
-      description: "View today's activities",
-      icon: 'today-outline',
-      action: onNavigateToDailyPlans,
-      keywords: ['today plan', 'today schedule', 'today activities']
+      keywords: ['daily plans', 'plans', 'schedule', 'daily schedule', 'create plan']
     },
 
-    // Reminders
+    // Call Reports
     {
-      id: 'set-reminder',
-      title: 'Set Reminder',
-      description: 'Create a new reminder',
+      id: 'call-reports',
+      title: 'Call Reports',
+      description: 'View and create call reports',
+      icon: 'call-outline',
+      action: onNavigateToCallReports,
+      keywords: ['call reports', 'dcr', 'call report', 'reports']
+    },
+
+    // Reminder
+    {
+      id: 'reminder',
+      title: 'Reminder',
+      description: 'Set and manage reminders',
       icon: 'alarm-outline',
-      action: onNavigateToReminderForm,
-      keywords: ['set reminder', 'create reminder', 'new reminder', 'add reminder']
-    },
-    {
-      id: 'view-reminders',
-      title: 'View Reminders',
-      description: 'See all your reminders',
-      icon: 'alarm-outline',
-      action: () => {}, // Will scroll to reminders
-      keywords: ['view reminders', 'see reminders', 'reminders list']
-    },
-    {
-      id: 'today-reminders',
-      title: "Today's Reminders",
-      description: "View today's reminders",
-      icon: 'today-outline',
-      action: () => {}, // Will scroll to reminders
-      keywords: ['today reminders', 'today alerts', 'current reminders']
+      action: onNavigateToReminder,
+      keywords: ['reminder', 'reminders', 'set reminder', 'alarm']
     },
 
-    // Expenses
+    // Visiting Plan
     {
-      id: 'expense',
-      title: 'Expense',
-      description: 'Track your expenses',
-      icon: 'card-outline',
-      action: onNavigateToExpenseOverview,
-      keywords: ['expense', 'expenses', 'cost', 'spending', 'money']
-    },
-    {
-      id: 'expense-overview',
-      title: 'Expense Overview',
-      description: 'View expense summary',
-      icon: 'bar-chart-outline',
-      action: onNavigateToExpenseOverview,
-      keywords: ['expense overview', 'expense summary', 'expense report']
-    },
-    {
-      id: 'add-expense',
-      title: 'Add Expense',
-      description: 'Record a new expense',
-      icon: 'add-circle-outline',
-      action: onNavigateToExpenseOverview,
-      keywords: ['add expense', 'new expense', 'record expense']
+      id: 'visiting-plan',
+      title: 'Visiting Plan',
+      description: 'Plan your visits',
+      icon: 'location-outline',
+      action: onNavigateToVisitingPlan,
+      keywords: ['visiting plan', 'visit plan', 'plan visit']
     },
 
-    // Master List
-    {
-      id: 'master-list',
-      title: 'Master List',
-      description: 'View doctors and chemists',
-      icon: 'list-outline',
-      action: onNavigateToMasterList,
-      keywords: ['master list', 'directory', 'contacts', 'list']
-    },
+    // Doctor & Chemist Lists
     {
       id: 'doctor-list',
       title: 'Doctor List',
-      description: 'View list of doctors',
+      description: 'View all doctors',
       icon: 'medical-outline',
       action: onNavigateToDoctorList,
-      keywords: ['doctor list', 'doctors', 'physicians']
+      keywords: ['doctor list', 'doctors', 'view all doctors', 'physicians']
     },
     {
       id: 'chemist-list',
       title: 'Chemist List',
-      description: 'View list of chemists',
+      description: 'View all chemists',
       icon: 'business-outline',
       action: onNavigateToChemistList,
-      keywords: ['chemist list', 'chemists', 'pharmacists', 'pharmacy']
+      keywords: ['chemist list', 'chemists', 'view all chemists', 'pharmacists', 'pharmacy']
     },
 
-    // Profile & Settings
+    // Profile Settings
     {
-      id: 'profile',
-      title: 'Profile',
-      description: 'View your profile',
+      id: 'update-profile',
+      title: 'Update Profile',
+      description: 'Update your profile information',
       icon: 'person-outline',
-      action: onNavigateToProfile,
-      keywords: ['profile', 'account', 'personal info']
+      action: onNavigateToUpdateProfile,
+      keywords: ['update profile', 'profile', 'edit profile', 'profile settings']
     },
     {
-      id: 'settings',
-      title: 'Settings',
-      description: 'App settings',
-      icon: 'settings-outline',
-      action: onNavigateToProfile,
-      keywords: ['settings', 'preferences', 'configuration']
-    },
-
-    // Quick Actions
-    {
-      id: 'emergency',
-      title: 'Emergency',
-      description: 'Emergency contacts',
-      icon: 'medical-outline',
-      action: () => {},
-      keywords: ['emergency', 'urgent', 'help']
+      id: 'set-mpin',
+      title: 'Set MPIN',
+      description: 'Set or change your MPIN',
+      icon: 'lock-closed-outline',
+      action: onNavigateToSetMPIN,
+      keywords: ['set mpin', 'mpin', 'pin', 'security pin']
     },
     {
-      id: 'hospital',
-      title: 'Hospital',
-      description: 'Find hospitals',
-      icon: 'business-outline',
-      action: () => {},
-      keywords: ['hospital', 'medical center', 'healthcare']
+      id: 'change-password',
+      title: 'Change Password',
+      description: 'Change your password',
+      icon: 'key-outline',
+      action: onNavigateToChangePassword,
+      keywords: ['change password', 'password', 'update password', 'reset password']
     },
     {
-      id: 'pharmacy',
-      title: 'Pharmacy',
-      description: 'Find pharmacies',
-      icon: 'medical-outline',
-      action: () => {},
-      keywords: ['pharmacy', 'drugstore', 'medication']
-    },
-    {
-      id: 'calendar',
-      title: 'Calendar',
-      description: 'View calendar and events',
-      icon: 'calendar-outline',
-      action: onNavigateToCalendar,
-      keywords: ['calendar', 'events', 'schedule', 'dates']
+      id: 'contact-us',
+      title: 'Contact Us',
+      description: 'Get in touch with support',
+      icon: 'mail-outline',
+      action: onNavigateToContactUs,
+      keywords: ['contact us', 'support', 'help', 'contact', 'customer service']
     }
   ];
 };

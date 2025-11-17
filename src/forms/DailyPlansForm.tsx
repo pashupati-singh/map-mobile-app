@@ -18,16 +18,17 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useNavigation, useFocusEffect, CommonActions } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
 import SearchComponent from '../components/SearchComponent';
 import SuccessToast from '../components/SuccessToast';
 import CustomLoader from '../components/CustomLoader';
 import ButtonLoader from '../components/ButtonLoader';
+import CurvedHeader from '../components/CurvedHeader';
 import { gqlFetch } from '../api/graphql';
-import { DOCTORS_QUERY } from '../graphql/query/doctors';
-import { CHEMISTS_QUERY } from '../graphql/query/chemists';
+import { GET_WORKING_AREA_RELATIONS_QUERY } from '../graphql/query/workingAreaRelations';
+import { GET_USERS_BY_WORKING_AREA_BY_USER_ID_QUERY } from '../graphql/query/workingArea';
 import { CREATE_DAILY_PLAN_MUTATION } from '../graphql/mutation/dailyPlan';
 import { LoginManager } from '../utils/LoginManager';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -57,11 +58,19 @@ interface ABM {
   email: string;
 }
 
+interface WorkingArea {
+  id: number;
+  state: string;
+  city: string;
+  district: string;
+  workingArea: string;
+}
+
 type DailyPlansFormNavigationProp = NativeStackNavigationProp<RootStackParamList, 'DailyPlansForm'>;
 
 export default function DailyPlansForm() {
   const navigation = useNavigation<DailyPlansFormNavigationProp>();
-  const [step, setStep] = useState<1 | 2>(1); // Step 1: Selection, Step 2: Details
+  const [step, setStep] = useState<0 | 1 | 2>(0); // Step 0: Location, Step 1: Selection, Step 2: Details
   const [activeTab, setActiveTab] = useState<'doctor' | 'chemist'>('doctor');
   const [showSearch, setShowSearch] = useState(false);
   const [selectedDoctors, setSelectedDoctors] = useState<string[]>([]);
@@ -73,6 +82,11 @@ export default function DailyPlansForm() {
   const [loadingDoctors, setLoadingDoctors] = useState(false);
   const [loadingChemists, setLoadingChemists] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  
+  // Step 0 states
+  const [workingAreas, setWorkingAreas] = useState<WorkingArea[]>([]);
+  const [loadingWorkingAreas, setLoadingWorkingAreas] = useState(false);
+  const [selectedWorkingArea, setSelectedWorkingArea] = useState<WorkingArea | null>(null);
   
   // Step 2 states
   const [workTogether, setWorkTogether] = useState(false);
@@ -113,53 +127,76 @@ export default function DailyPlansForm() {
     return images[Math.abs(hash) % images.length];
   };
 
-  // Load doctors data with cache
-  const loadDoctors = async (useCache: boolean = true) => {
+  // Load doctors and chemists based on selected working area
+  const loadDoctorsAndChemists = async () => {
     try {
       setLoadingDoctors(true);
-      
+      setLoadingChemists(true);
+
+      // Get selected working area
+      const cachedWorkingArea = await DailyPlansCache.getSelectedWorkingArea();
+      if (!cachedWorkingArea || !cachedWorkingArea.id) {
+        Alert.alert('Error', 'Please select a working area first.');
+        setLoadingDoctors(false);
+        setLoadingChemists(false);
+        return;
+      }
+
       // Check cache first
-      if (useCache) {
-        const cachedDoctors = await DailyPlansCache.getDoctors<Doctor[]>();
-        if (cachedDoctors) {
-          setDoctors(cachedDoctors);
-          setLoadingDoctors(false);
-          return;
-        }
+      const cachedDoctors = await DailyPlansCache.getDoctors<Doctor[]>();
+      const cachedChemists = await DailyPlansCache.getChemists<Chemist[]>();
+      if (cachedDoctors && cachedChemists) {
+        setDoctors(cachedDoctors);
+        setChemists(cachedChemists);
+        setLoadingDoctors(false);
+        setLoadingChemists(false);
+        return;
       }
 
       const token = await AsyncStorage.getItem('authToken');
       if (!token) {
         setLoadingDoctors(false);
+        setLoadingChemists(false);
         return;
       }
 
-      type DoctorsResponse = {
-        doctors: {
+      type WorkingAreaRelationsResponse = {
+        getWorkingAreaRelations: {
           code: number;
           success: boolean;
           message: string;
-          lastPage: number;
-          doctors: Array<{
-            id: number;
-            email: string;
-            phone: string;
-            doctor: {
-              name: string;
-              titles: string[];
-            };
-          }>;
+          data: {
+            doctorCompanies: Array<{
+              id: number;
+              phone: string;
+              doctor: {
+                name: string;
+                titles: string[];
+              };
+            }>;
+            chemistCompanies: Array<{
+              id: number;
+              phone: string;
+              chemist: {
+                name: string;
+                titles: string[];
+              };
+            }>;
+          };
         };
       };
 
-      const response = await gqlFetch<DoctorsResponse>(
-        DOCTORS_QUERY,
-        { page: 1, limit: 100 },
+      const response = await gqlFetch<WorkingAreaRelationsResponse>(
+        GET_WORKING_AREA_RELATIONS_QUERY,
+        { workingAreaId: cachedWorkingArea.id },
         token
       );
 
-      if (response.doctors.success && response.doctors.doctors) {
-        const transformedDoctors: Doctor[] = response.doctors.doctors.map((doc) => ({
+      if (response.getWorkingAreaRelations.success && response.getWorkingAreaRelations.data) {
+        const { doctorCompanies, chemistCompanies } = response.getWorkingAreaRelations.data;
+
+        // Transform doctors
+        const transformedDoctors: Doctor[] = doctorCompanies.map((doc) => ({
           id: String(doc.id),
           name: `Dr. ${doc.doctor.name}`,
           title: doc.doctor.titles?.join(', ') || '',
@@ -168,63 +205,10 @@ export default function DailyPlansForm() {
           profileImage: getDummyProfileImage(doc.doctor.name, 'doctor'),
         }));
         setDoctors(transformedDoctors);
-        // Cache the data
         await DailyPlansCache.setDoctors(transformedDoctors);
-      }
-    } catch (error) {
-      console.error('Error loading doctors:', error);
-      Alert.alert('Error', 'Failed to load doctors. Please try again.');
-    } finally {
-      setLoadingDoctors(false);
-    }
-  };
 
-  // Load chemists data with cache
-  const loadChemists = async (useCache: boolean = true) => {
-    try {
-      setLoadingChemists(true);
-      
-      // Check cache first
-      if (useCache) {
-        const cachedChemists = await DailyPlansCache.getChemists<Chemist[]>();
-        if (cachedChemists) {
-          setChemists(cachedChemists);
-          setLoadingChemists(false);
-          return;
-        }
-      }
-
-      const token = await AsyncStorage.getItem('authToken');
-      if (!token) {
-        setLoadingChemists(false);
-        return;
-      }
-
-      type ChemistsResponse = {
-        chemists: {
-          code: number;
-          success: boolean;
-          message: string;
-          lastPage: number;
-          chemists: Array<{
-            id: number;
-            email: string;
-            phone: string;
-            chemist: {
-              name: string;
-            };
-          }>;
-        };
-      };
-
-      const response = await gqlFetch<ChemistsResponse>(
-        CHEMISTS_QUERY,
-        { page: 1, limit: 100 },
-        token
-      );
-
-      if (response.chemists.success && response.chemists.chemists) {
-        const transformedChemists: Chemist[] = response.chemists.chemists.map((chem) => ({
+        // Transform chemists
+        const transformedChemists: Chemist[] = chemistCompanies.map((chem) => ({
           id: String(chem.id),
           name: chem.chemist.name,
           title: 'Chemist',
@@ -233,29 +217,77 @@ export default function DailyPlansForm() {
           profileImage: getDummyProfileImage(chem.chemist.name, 'chemist'),
         }));
         setChemists(transformedChemists);
-        // Cache the data
         await DailyPlansCache.setChemists(transformedChemists);
       }
     } catch (error) {
-      console.error('Error loading chemists:', error);
-      Alert.alert('Error', 'Failed to load chemists. Please try again.');
+      console.error('Error loading doctors and chemists:', error);
+      Alert.alert('Error', 'Failed to load doctors and chemists. Please try again.');
     } finally {
+      setLoadingDoctors(false);
       setLoadingChemists(false);
     }
   };
 
-  // Load both doctors and chemists in parallel when form opens
-  useEffect(() => {
-    const loadAllData = async () => {
-      // Load both queries in parallel
-      await Promise.all([
-        loadDoctors(),
-        loadChemists(),
-      ]);
-    };
+  // Load working areas - prioritize cache, only fetch if empty
+  const loadWorkingAreas = async () => {
+    try {
+      // Check cache first
+      const cachedAreas = await DailyPlansCache.getWorkingAreas<WorkingArea[]>();
+      if (cachedAreas && cachedAreas.length > 0) {
+        setWorkingAreas(cachedAreas);
+        const selected = await DailyPlansCache.getSelectedWorkingArea();
+        if (selected) setSelectedWorkingArea(selected);
+        return;
+      }
 
-    loadAllData();
-  }, []); // Only run once on mount
+      // Only fetch if cache is empty
+      setLoadingWorkingAreas(true);
+      const token = await AsyncStorage.getItem('authToken');
+      if (!token) {
+        setLoadingWorkingAreas(false);
+        return;
+      }
+
+      type WorkingAreasResponse = {
+        getUsersByWorkingAreabyUserId: {
+          code: number;
+          success: boolean;
+          message: string;
+          data: WorkingArea[];
+        };
+      };
+
+      const response = await gqlFetch<WorkingAreasResponse>(
+        GET_USERS_BY_WORKING_AREA_BY_USER_ID_QUERY,
+        {},
+        token
+      );
+
+      if (response.getUsersByWorkingAreabyUserId.success && response.getUsersByWorkingAreabyUserId.data) {
+        setWorkingAreas(response.getUsersByWorkingAreabyUserId.data);
+        await DailyPlansCache.setWorkingAreas(response.getUsersByWorkingAreabyUserId.data);
+        const selected = await DailyPlansCache.getSelectedWorkingArea();
+        if (selected) setSelectedWorkingArea(selected);
+      }
+    } catch (error) {
+      console.error('Error loading working areas:', error);
+      Alert.alert('Error', 'Failed to load working areas. Please try again.');
+    } finally {
+      setLoadingWorkingAreas(false);
+    }
+  };
+
+  // Load working areas on mount only
+  useEffect(() => {
+    loadWorkingAreas();
+  }, []);
+
+  // Load doctors and chemists when step 1 is reached
+  useEffect(() => {
+    if (step === 1) {
+      loadDoctorsAndChemists();
+    }
+  }, [step]); // Run when step changes
 
   // Handle Android back button
   useEffect(() => {
@@ -265,8 +297,13 @@ export default function DailyPlansForm() {
         Keyboard.dismiss();
         setStep(1);
         return true; // Prevent default back behavior
+      } else if (step === 1) {
+        // If on step 1, go back to step 0
+        Keyboard.dismiss();
+        setStep(0);
+        return true; // Prevent default back behavior
       }
-      // If on step 1, allow default back behavior (go to home)
+      // If on step 0, allow default back behavior (go to home)
       return false;
     });
 
@@ -301,6 +338,17 @@ export default function DailyPlansForm() {
 
   const getSelectedCount = () => {
     return activeTab === 'doctor' ? selectedDoctors.length : selectedChemists.length;
+  };
+
+  const handleLocationNext = async () => {
+    // Validate that a working area is selected
+    if (!selectedWorkingArea) {
+      Alert.alert('Location Required', 'Please select a working area to continue.');
+      return;
+    }
+    // Save selected working area to cache
+    await DailyPlansCache.setSelectedWorkingArea(selectedWorkingArea);
+    setStep(1);
   };
 
   const handleNext = () => {
@@ -341,7 +389,8 @@ export default function DailyPlansForm() {
         const day = date.getDate().toString().padStart(2, '0');
         const month = (date.getMonth() + 1).toString().padStart(2, '0');
         const year = date.getFullYear();
-        return `${day}-${month}-${year}`;
+
+        return `${day}/${month}/${year}`;
       };
 
       // Get current user ID (abmId) - this is the person creating the plan
@@ -353,6 +402,14 @@ export default function DailyPlansForm() {
       }
       const abmId = parseInt(userId);
 
+      // Get selected working area ID
+      const cachedWorkingArea = await DailyPlansCache.getSelectedWorkingArea();
+      if (!cachedWorkingArea || !cachedWorkingArea.id) {
+        Alert.alert('Error', 'Working area not found. Please select a location again.');
+        setSubmitting(false);
+        return;
+      }
+
       type CreateDailyPlanResponse = {
         createDailyPlan: {
           code: number;
@@ -360,28 +417,39 @@ export default function DailyPlansForm() {
           message: string;
         };
       };
+      const mutationPayload = {
+        data: {
+          doctorCompanyIds: selectedDoctors.map(id => parseInt(id)),
+          chemistCompanyIds: selectedChemists.map(id => parseInt(id)),
+          planDate: formatDateForAPI(planDate),
+          notes: notes || '',
+          abmId: selectedABMId,
+          workTogether: workTogether,
+          workingAreaId: cachedWorkingArea.id,
+        },
+      };
+
+      console.log('Create Daily Plan Mutation Payload:', JSON.stringify(mutationPayload, null, 2));
+
       const response = await gqlFetch<CreateDailyPlanResponse>(
         CREATE_DAILY_PLAN_MUTATION,
-        {
-          data: {
-            doctorCompanyIds: selectedDoctors.map(id => parseInt(id)),
-            chemistCompanyIds: selectedChemists.map(id => parseInt(id)),
-            planDate: formatDateForAPI(planDate),
-            notes: notes || '',
-            abmId: selectedABMId,
-            workTogether: workTogether,
-          },
-        },
+        mutationPayload,
         token
       );
 
+
       if (response.createDailyPlan.success) {
-        // Clear cache after successful creation
         await DailyPlansCache.clearAll();
         setShowToast(true);
         setTimeout(() => {
           setShowToast(false);
-          navigation.goBack();
+          // Reset navigation stack to Home
+          navigation.dispatch(
+            CommonActions.reset({
+              index: 0,
+              routes: [{ name: 'Home' }],
+            })
+          );
         }, 2000);
       } else {
         Alert.alert('Error', response.createDailyPlan.message || 'Failed to create daily plan.');
@@ -395,26 +463,15 @@ export default function DailyPlansForm() {
   };
 
   const handleToastHide = async () => {
-    // Clear cache before going back
     await DailyPlansCache.clearAll();
     setShowToast(false);
-    navigation.goBack();
-  };
-
-  const getSelectedItems = () => {
-    const selectedItems: any[] = [];
-    
-    selectedDoctors.forEach(id => {
-      const doctor = doctors.find(d => d.id === id);
-      if (doctor) selectedItems.push({ ...doctor, type: 'Doctor' });
-    });
-    
-    selectedChemists.forEach(id => {
-      const chemist = chemists.find(c => c.id === id);
-      if (chemist) selectedItems.push({ ...chemist, type: 'Chemist' });
-    });
-    
-    return selectedItems;
+    // Reset navigation stack to Home
+    navigation.dispatch(
+      CommonActions.reset({
+        index: 0,
+        routes: [{ name: 'Home' }],
+      })
+    );
   };
 
   return (
@@ -427,21 +484,70 @@ export default function DailyPlansForm() {
       <StatusBar barStyle="dark-content" backgroundColor="#f8fafc" />
       
       {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.backButton} />
-        <Text style={styles.headerTitle}>
-          {step === 1 ? 'Daily Plans' : 'Plan Details'}
-        </Text>
-        {step === 1 && (
-          <TouchableOpacity 
-            style={styles.searchIconButton}
-            onPress={() => setShowSearch(true)}
-          >
-            <Ionicons name="search" size={24} color="#0f766e" />
-          </TouchableOpacity>
-        )}
-        {step === 2 && <View style={styles.searchIconButton} />}
-      </View>
+      <CurvedHeader
+        title={step === 0 ? 'Select Location' : step === 1 ? 'Daily Plans' : 'Plan Details'}
+        showBackButton={false}
+        rightComponent={
+          step === 1 ? (
+            <TouchableOpacity 
+              onPress={() => setShowSearch(true)}
+            >
+              <Ionicons name="search" size={24} color="white" />
+            </TouchableOpacity>
+          ) : undefined
+        }
+      />
+
+      {/* Step 0: Location Selection */}
+      {step === 0 && (
+        <>
+          {loadingWorkingAreas ? (
+            <View style={styles.loaderContainer}>
+              <CustomLoader size={48} color="#0f766e" />
+            </View>
+          ) : (
+            <ScrollView style={styles.content} showsVerticalScrollIndicator={false} contentContainerStyle={styles.locationScrollContent}>
+              {workingAreas.length === 0 ? (
+                <View style={styles.emptyContainer}>
+                  <Ionicons name="location-outline" size={48} color="#9ca3af" />
+                  <Text style={styles.emptyText}>No working areas found</Text>
+                </View>
+              ) : (
+                workingAreas.map((area) => (
+                  <TouchableOpacity
+                    key={area.id}
+                    style={[
+                      styles.locationItem,
+                      selectedWorkingArea?.id === area.id && styles.locationItemSelected
+                    ]}
+                    onPress={() => setSelectedWorkingArea(area)}
+                  >
+                    <View style={styles.locationItemLeft}>
+                      <View style={[
+                        styles.locationRadio,
+                        selectedWorkingArea?.id === area.id && styles.locationRadioSelected
+                      ]}>
+                        {selectedWorkingArea?.id === area.id && (
+                          <View style={styles.locationRadioInner} />
+                        )}
+                      </View>
+                      <View style={styles.locationInfo}>
+                        <Text style={styles.locationArea}>{area.workingArea}</Text>
+                        <Text style={styles.locationDetails}>
+                          {area.district}, {area.city}, {area.state}
+                        </Text>
+                      </View>
+                    </View>
+                    {selectedWorkingArea?.id === area.id && (
+                      <Ionicons name="checkmark-circle" size={24} color="#0f766e" />
+                    )}
+                  </TouchableOpacity>
+                ))
+              )}
+            </ScrollView>
+          )}
+        </>
+      )}
 
       {/* Step 1: Selection */}
       {step === 1 && (
@@ -469,7 +575,7 @@ export default function DailyPlansForm() {
       )}
 
       {/* Content */}
-      {step === 1 ? (
+      {step === 0 ? null : step === 1 ? (
         (loadingDoctors || loadingChemists) ? (
           <View style={styles.loaderContainer}>
             <CustomLoader size={48} color="#0f766e" />
@@ -645,6 +751,39 @@ export default function DailyPlansForm() {
             </View>
           </ScrollView>
         </KeyboardAvoidingView>
+      )}
+
+      {/* Action Buttons for Step 0 - Outside ScrollView */}
+      {step === 0 && (
+        <View style={styles.actionButtons}>
+          <TouchableOpacity 
+            style={styles.cancelButton} 
+            onPress={async () => {
+              await DailyPlansCache.clearAll();
+              navigation.goBack();
+            }}
+          >
+            <Text style={styles.cancelButtonText}>Cancel</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.nextButton} 
+            onPress={handleLocationNext}
+            disabled={!selectedWorkingArea}
+          >
+            <LinearGradient
+              colors={
+                !selectedWorkingArea 
+                  ? ['#9ca3af', '#9ca3af']
+                  : ['#0f766e', '#14b8a6']
+              }
+              style={styles.nextButtonGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+            >
+              <Text style={styles.nextButtonText}>Next</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
       )}
 
       {/* Action Buttons for Step 1 - Outside ScrollView */}
@@ -1147,5 +1286,70 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  // Location Selection Styles
+  locationItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: 'white',
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    marginBottom: 12,
+    borderWidth: 2,
+    borderColor: '#e5e7eb',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  locationItemSelected: {
+    borderColor: '#0f766e',
+    backgroundColor: '#f0fdfa',
+  },
+  locationItemLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  locationRadio: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#d1d5db',
+    marginRight: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  locationRadioSelected: {
+    borderColor: '#0f766e',
+  },
+  locationRadioInner: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#0f766e',
+  },
+  locationInfo: {
+    flex: 1,
+  },
+  locationArea: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1f2937',
+    marginBottom: 4,
+  },
+  locationDetails: {
+    fontSize: 14,
+    color: '#6b7280',
+  },
+  locationScrollContent: {
+    paddingTop: 20,
   },
 });

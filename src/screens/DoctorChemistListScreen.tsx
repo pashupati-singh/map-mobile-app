@@ -5,9 +5,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   Image,
-  ScrollView,
   FlatList,
-  TextInput,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,6 +14,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
 import SimpleSearchComponent from '../components/SimpleSearchComponent';
 import CustomLoader from '../components/CustomLoader';
+import CurvedHeader from '../components/CurvedHeader';
 import { gqlFetch } from '../api/graphql';
 import { CHEMISTS_QUERY } from '../graphql/query/chemists';
 import { DOCTORS_QUERY } from '../graphql/query/doctors';
@@ -276,17 +275,14 @@ export default function DoctorChemistListScreen() {
       colors={['#f0fdfa', '#ecfdf5', '#f0fdf4']}
       style={styles.container}
     >
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#0f766e" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>
-          {listType === 'doctors' ? 'Doctors' : listType === 'chemists' ? 'Chemists' : 'Medical Professionals'}
-        </Text>
-        <TouchableOpacity onPress={() => setSearchVisible(true)} style={styles.searchButton}>
-          <Ionicons name="search" size={24} color="#0f766e" />
-        </TouchableOpacity>
-      </View>
+      <CurvedHeader
+        title={listType === 'doctors' ? 'Doctors' : listType === 'chemists' ? 'Chemists' : 'Medical Professionals'}
+        rightComponent={
+          <TouchableOpacity onPress={() => setSearchVisible(true)}>
+            <Ionicons name="search" size={24} color="white" />
+          </TouchableOpacity>
+        }
+      />
 
       {showTabs && (
         <View style={styles.tabContainer}>

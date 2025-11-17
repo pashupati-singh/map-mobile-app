@@ -15,6 +15,7 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
 import { ReminderManager, UserReminder } from '../utils/ReminderManager';
+import CurvedHeader from '../components/CurvedHeader';
 
 type CalendarScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Calendar'>;
 
@@ -441,25 +442,7 @@ export default function CalendarScreen() {
 
   return (
     <View style={styles.container}>
-      <LinearGradient
-        colors={['#0f766e', '#14b8a6']}
-        style={styles.header}
-      >
-        <View style={styles.headerContent}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color="white" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Calendars</Text>
-          <View style={styles.headerButtons}>
-            <TouchableOpacity style={styles.demoButton}>
-              {/* <Ionicons name="color-palette" size={20} color="white" /> */}
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.addButton}>
-              {/* <Ionicons name="add" size={24} color="white" /> */}
-            </TouchableOpacity>
-          </View>
-        </View>
-      </LinearGradient>
+      <CurvedHeader title="Calendars" />
 
       <View style={styles.monthView}>
         <View style={styles.monthHeader}>
