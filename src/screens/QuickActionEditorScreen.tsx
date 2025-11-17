@@ -13,6 +13,7 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
 import { QuickActionManager } from '../utils/QuickActionManager';
+import CurvedHeader from '../components/CurvedHeader';
 
 type QuickActionEditorScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'QuickActionEditor'>;
 
@@ -153,24 +154,14 @@ export default function QuickActionEditorScreen() {
   return (
     <View style={styles.container}>
       {/* Header */}
-      <LinearGradient
-        colors={['#0f766e', '#14b8a6']}
-        style={styles.header}
-      >
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Ionicons name="arrow-back" size={24} color="white" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Edit Quick Action</Text>
-        <TouchableOpacity
-          style={styles.saveButton}
-          onPress={handleSave}
-        >
-          <Text style={styles.saveButtonText}>Save</Text>
-        </TouchableOpacity>
-      </LinearGradient>
+      <CurvedHeader
+        title="Edit Quick Action"
+        rightComponent={
+          <TouchableOpacity onPress={handleSave}>
+            <Text style={{ color: 'white', fontSize: 16, fontWeight: '600' }}>Save</Text>
+          </TouchableOpacity>
+        }
+      />
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.infoContainer}>

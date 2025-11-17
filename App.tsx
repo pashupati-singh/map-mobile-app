@@ -13,13 +13,18 @@ import DoctorProfileScreen from './src/screens/DoctorProfileScreen';
 import ChemistProfileScreen from './src/screens/ChemistProfileScreen';
 import DCRFormScreen from './src/screens/DCRFormScreen';
 import ExpenseOverviewScreen from './src/screens/ExpenseOverviewScreen';
-import ExpenseFlowScreen from './src/screens/ExpenseFlowScreen';
 import CalendarScreen from './src/screens/CalendarScreen';
 import NotificationsScreen from './src/screens/NotificationsScreen';
 import { SetReminderForm } from './src/forms';
 import DCRScreen from './src/screens/DCRScreen';
 import ReportsMoreScreen from './src/screens/ReportsMoreScreen';
 import QuickActionEditorScreen from './src/screens/QuickActionEditorScreen';
+import PlanHistoryScreen from './src/screens/PlanHistoryScreen';
+import PlanDetailScreen from './src/screens/PlanDetailScreen';
+import OldRemindersScreen from './src/screens/OldRemindersScreen';
+import UpcomingEventsScreen from './src/screens/UpcomingEventsScreen';
+import ProductsScreen from './src/screens/ProductsScreen';
+import ProductDetailScreen from './src/screens/ProductDetailScreen';
 import SuccessNotification from './src/components/SuccessNotification';
 import { LoginManager } from './src/utils/LoginManager';
 import { UserDataManager } from './src/utils/UserDataManager';
@@ -172,11 +177,6 @@ export default function App() {
             options={{ headerShown: false }}
           />
           <Stack.Screen 
-            name="ExpenseFlow" 
-            component={ExpenseFlowScreen}
-            options={{ headerShown: false }}
-          />
-          <Stack.Screen 
             name="Calendar" 
             component={CalendarScreen}
             options={{ headerShown: false }}
@@ -201,6 +201,36 @@ export default function App() {
           <Stack.Screen 
             name="QuickActionEditor" 
             component={QuickActionEditorScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen 
+            name="PlanHistory" 
+            component={PlanHistoryScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen 
+            name="PlanDetail" 
+            component={PlanDetailScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen 
+            name="OldReminders" 
+            component={OldRemindersScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen 
+            name="UpcomingEvents" 
+            component={UpcomingEventsScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen 
+            name="Products" 
+            component={ProductsScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen 
+            name="ProductDetail" 
+            component={ProductDetailScreen}
             options={{ headerShown: false }}
           />
           

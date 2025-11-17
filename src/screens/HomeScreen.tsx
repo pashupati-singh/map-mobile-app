@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, CommonActions } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
 import UserProfileSidebar from '../components/UserProfileSidebar';
@@ -119,7 +119,7 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
         icon: 'time-outline',
         color: '#6366f1',
         category: 'report',
-        onPress: () => {},
+        onPress: () => navigation.navigate('PlanHistory'),
       },
       {
         id: 'average-call',
@@ -192,17 +192,23 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
 
   const initializeSearchSuggestions = () => {
     const suggestions = createSearchSuggestions(
-      () => navigation.navigate('DCR'), // DCR
-      () => navigation.navigate('DCRForm'), // DCR Form
-      () => {}, // Daily Plans (already on home)
-      () => navigation.navigate('DailyPlansForm'), // Daily Plans Form
-      () => navigation.navigate('SetReminder'), // Reminder Form
-      () => navigation.navigate('ExpenseOverview'), // Expense Overview
+      () => navigation.navigate('PlanHistory'), // Plan History
+      () => Alert.alert('Average Call', 'Average Call functionality will be implemented'), // Average Call
+      () => Alert.alert('Visiting History', 'Visiting History functionality will be implemented'), // Visiting History
+      () => navigation.navigate('Products'), // Products
+      () => navigation.navigate('UpcomingEvents'), // Upcoming Events
+      () => navigation.navigate('OldReminders'), // Old Reminders
+      () => Alert.alert('Sales', 'Sales functionality will be implemented'), // Sales
+      () => navigation.navigate('DailyPlansForm'), // Daily Plans
+      () => navigation.navigate('DCR'), // Call Reports
+      () => navigation.navigate('SetReminder'), // Reminder
+      () => Alert.alert('Visiting Plan', 'Visiting Plan functionality will be implemented'), // Visiting Plan
       () => navigation.navigate('DoctorChemistList', { listType: 'doctors' }), // Doctor List
       () => navigation.navigate('DoctorChemistList', { listType: 'chemists' }), // Chemist List
-      () => navigation.navigate('DoctorChemistList', { listType: 'both' }), // Master List
-      () => setShowSidebar(true), // Profile
-      () => navigation.navigate('Calendar'), // Calendar
+      () => setShowSidebar(true), // Update Profile
+      () => handleSetNewMPIN(), // Set MPIN
+      () => handleChangePassword(), // Change Password
+      () => handleContactUs(), // Contact Us
     );
     setSearchSuggestions(suggestions);
   };
@@ -242,6 +248,7 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
               phone: string;
               dob?: string;
               anniversary?: string;
+              type?: string;
               doctor?: { name: string; titles: string[] };
               chemist?: { name: string; titles: string[]; status?: string };
             }>;
@@ -277,22 +284,54 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
       const response = await gqlFetch<HomePageResponse>(HOME_PAGE_QUERY, {}, token);
       
       if (response.homePage.success && response.homePage.data) {
-        const { events, remindars, dailyplans } = response.homePage.data;
+          const { events, remindars, dailyplans } = response.homePage.data;
 
         // Transform events to todaysReminders format
         const transformedEvents = events.map((event, index) => {
           const isDoctor = !!event.doctor;
           const person = isDoctor ? event.doctor! : event.chemist!;
-          const today = new Date();
-          const eventDate = event.dob ? event.dob : event.anniversary || '';
-          const eventType = event.dob ? 'birthday' : 'anniversary';
+
+          const dob = (event as any).dob as string | undefined;
+          const anniversary = (event as any).anniversary as string | undefined;
+          const rawType = ((event as any).type ?? '').toString().toLowerCase();
+
+          const parseDate = (value?: string) => {
+            if (!value) return null;
+            const numeric = Number(value);
+            const date = Number.isFinite(numeric) && value.trim() !== '' ? new Date(numeric) : new Date(value);
+            return Number.isNaN(date.getTime()) ? null : date;
+          };
+
+          const isSameDay = (first?: string, second?: string) => {
+            const firstDate = parseDate(first);
+            const secondDate = parseDate(second);
+            if (!firstDate || !secondDate) return false;
+            return (
+              firstDate.getUTCDate() === secondDate.getUTCDate() &&
+              firstDate.getUTCMonth() === secondDate.getUTCMonth()
+            );
+          };
+
+          let eventType: 'birthday' | 'anniversary' | 'both';
+          if (rawType === 'birthday' || rawType === 'anniversary' || rawType === 'both') {
+            eventType = rawType as 'birthday' | 'anniversary' | 'both';
+          } else if (dob && anniversary && isSameDay(dob, anniversary)) {
+            eventType = 'both';
+          } else if (dob) {
+            eventType = 'birthday';
+          } else {
+            eventType = 'anniversary';
+          }
+
+          const eventDate =
+            eventType === 'anniversary' ? anniversary ?? dob ?? '' : dob ?? anniversary ?? '';
 
           return {
             id: `event-${index}`,
             name: isDoctor ? `Dr. ${person.name}` : person.name,
             phoneNumber: event.phone,
             titles: person.titles || [],
-            eventType: eventType as 'birthday' | 'anniversary',
+            eventType,
             eventDate: eventDate,
             profileImage: undefined,
           };
@@ -587,26 +626,26 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
   ];
 
   const reportsCategories = [
-    {
-      id: 'plan-history',
-      title: 'Plan History',
-      icon: 'time-outline',
-      color: '#6366f1', // Indigo for plan history - professional and distinct
-      onPress: () => {},
-    },
-    {
-      id: 'average-call',
-      title: 'Average Call',
-      icon: 'stats-chart-outline',
-      color: '#f97316', // Orange for average call statistics - warm and distinct
-      onPress: () => {},
-    },
+      {
+        id: 'plan-history',
+        title: 'Plan History',
+        icon: 'time-outline',
+        color: '#6366f1', // Indigo for plan history - professional and distinct
+        onPress: () => navigation.navigate('PlanHistory'),
+      },
     {
       id: 'visiting-history',
       title: 'Visiting History',
       icon: 'location-outline',
       color: '#06b6d4', // Cyan for visiting history - fresh and distinct
       onPress: () => {},
+    },
+    {
+      id: 'products',
+      title: 'Products',
+      icon: 'cube-outline',
+      color: '#ec4899', // Pink for products - unique and distinct
+      onPress: () => navigation.navigate('Products'),
     },
     {
       id: 'more',
@@ -1449,12 +1488,16 @@ const styles = StyleSheet.create({
     color: '#374151',
   },
   reportsSection: {
+    marginTop: 20,
     marginBottom: 20,
+    paddingTop: 20,
+    paddingBottom: 20,
   },
   reportsContainer: {
     backgroundColor: 'white',
     borderRadius: 16,
-    padding: 20,
+    paddingVertical: 24,
+    paddingHorizontal: 20,
     borderBottomWidth: 2,
     borderBottomColor: '#e5e7eb',
     borderTopWidth: 2,

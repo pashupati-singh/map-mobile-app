@@ -14,7 +14,7 @@ export interface DoctorReminder {
   name: string;
   phoneNumber: string;
   titles: string[];
-  eventType: 'birthday' | 'anniversary';
+  eventType: 'birthday' | 'anniversary' | 'both';
   eventDate: string;
   profileImage?: string;
 }

@@ -4,7 +4,7 @@ import { View, StyleSheet, Animated, Easing } from 'react-native';
 interface CustomLoaderProps {
   size?: number;
   color?: string;
-}  
+}
 
 export default function CustomLoader({ 
   size = 48, 

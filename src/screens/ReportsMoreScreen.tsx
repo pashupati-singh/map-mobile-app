@@ -9,9 +9,10 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, CommonActions } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
+import CurvedHeader from '../components/CurvedHeader';
 
 type ReportsMoreScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'ReportsMore'>;
 
@@ -34,7 +35,7 @@ export default function ReportsMoreScreen() {
       icon: 'time-outline',
       color: '#6366f1', // Indigo
       onPress: () => {
-        Alert.alert('Plan History', 'Plan History functionality will be implemented');
+        navigation.navigate('PlanHistory');
       },
     },
     {
@@ -56,12 +57,21 @@ export default function ReportsMoreScreen() {
       },
     },
     {
+      id: 'products',
+      title: 'Products',
+      icon: 'cube-outline',
+      color: '#ec4899', // Pink
+      onPress: () => {
+        navigation.navigate('Products');
+      },
+    },
+    {
       id: 'upcoming-events',
       title: 'Upcoming Events',
       icon: 'calendar-outline',
       color: '#8b5cf6', // Purple
       onPress: () => {
-        Alert.alert('Upcoming Events', 'Upcoming Events functionality will be implemented');
+        navigation.navigate('UpcomingEvents');
       },
     },
     {
@@ -70,7 +80,7 @@ export default function ReportsMoreScreen() {
       icon: 'archive-outline',
       color: '#ef4444', // Red
       onPress: () => {
-        Alert.alert('Old Reminders', 'Old Reminders functionality will be implemented');
+        navigation.navigate('OldReminders');
       },
     },
     {
@@ -87,19 +97,7 @@ export default function ReportsMoreScreen() {
   return (
     <View style={styles.container}>
       {/* Header */}
-      <LinearGradient
-        colors={['#0f766e', '#14b8a6']}
-        style={styles.header}
-      >
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Ionicons name="arrow-back" size={24} color="white" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Reports</Text>
-        <View style={styles.placeholder} />
-      </LinearGradient>
+      <CurvedHeader title="Reports" />
 
       <ScrollView 
         style={styles.content} 
@@ -146,7 +144,13 @@ export default function ReportsMoreScreen() {
             style={[styles.navItem, item.active && styles.activeNavItem]}
             onPress={() => {
               if (item.id === 'home') {
-                navigation.navigate('Home');
+                // Reset navigation stack to Home
+                navigation.dispatch(
+                  CommonActions.reset({
+                    index: 0,
+                    routes: [{ name: 'Home' }],
+                  })
+                );
               } else if (item.id === 'report') {
                 // Already on ReportsMore screen, do nothing
                 return;

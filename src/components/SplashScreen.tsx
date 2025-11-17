@@ -56,8 +56,8 @@ export default function SplashScreen({ onFinish }: SplashScreenProps) {
           </View>
         </View>
         
-        {/* MedicMap Text */}
-        <Text style={styles.brandName}>MedicMap</Text>
+        {/* my-app Text */}
+        <Text style={styles.brandName}>my-app</Text>
         <View style={styles.underline} />
       </Animated.View>
     </View>

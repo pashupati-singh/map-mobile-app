@@ -11,6 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
+import CurvedHeader from '../components/CurvedHeader';
 
 type ReportsScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Reports'>;
 
@@ -46,13 +47,7 @@ export default function ReportsScreen() {
   return (
     <View style={styles.container}>
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={24} color="#0f766e" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Reports</Text>
-        <View style={styles.placeholder} />
-      </View>
+      <CurvedHeader title="Reports" />
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Call Report Section */}

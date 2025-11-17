@@ -16,6 +16,8 @@ import { PieChart } from 'react-native-chart-kit';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
+import CurvedHeader from '../components/CurvedHeader';
+import ExpenseFlowSection from '../components/ExpenseFlowSection';
 
 interface ExpenseCategory {
   id: string;
@@ -27,18 +29,16 @@ interface ExpenseCategory {
   type: 'doctor' | 'chemist';
 }
 
+
 type ExpenseOverviewScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'ExpenseOverview'>;
 
 export default function ExpenseOverviewScreen() {
   const navigation = useNavigation<ExpenseOverviewScreenNavigationProp>();
   const [currentYear, setCurrentYear] = useState(2025);
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [viewMode, setViewMode] = useState<'daily' | 'weekly' | 'monthly' | 'q1' | 'q2' | 'q3' | 'q4' | '6months' | 'yearly'>('yearly');
+  const [viewMode, setViewMode] = useState<'daily' | 'weekly' | 'monthly' | 'quarterly' | '6months' | 'yearly'>('yearly');
   const [showFilterModal, setShowFilterModal] = useState(false);
-  const [showExpenseFlowDropdown, setShowExpenseFlowDropdown] = useState(false);
-  const handleNavigateToExpenseFlow = () => {
-    navigation.navigate('ExpenseFlow', { viewMode, currentDate });
-  };
+  const [selectedTab, setSelectedTab] = useState<'expense' | 'sales' | 'order'>('expense');
 
   // Mock data for expense categories
   const expenseCategories: ExpenseCategory[] = [
@@ -160,10 +160,7 @@ export default function ExpenseOverviewScreen() {
       case 'monthly':
         newDate.setMonth(newDate.getMonth() + (direction === 'next' ? 1 : -1));
         break;
-      case 'q1':
-      case 'q2':
-      case 'q3':
-      case 'q4':
+      case 'quarterly':
         newDate.setMonth(newDate.getMonth() + (direction === 'next' ? 3 : -3));
         break;
       case '6months':
@@ -189,14 +186,37 @@ export default function ExpenseOverviewScreen() {
         return `${weekStart.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit' })} - ${weekEnd.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit' })}`;
       case 'monthly':
         return currentDate.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
-      case 'q1':
-        return `Q1 ${currentDate.getFullYear()}`;
-      case 'q2':
-        return `Q2 ${currentDate.getFullYear()}`;
-      case 'q3':
-        return `Q3 ${currentDate.getFullYear()}`;
-      case 'q4':
-        return `Q4 ${currentDate.getFullYear()}`;
+      case 'quarterly':
+        const month = currentDate.getMonth();
+        let quarter: number;
+        let year = currentDate.getFullYear();
+        
+        // Determine quarter based on Indian fiscal year
+        if (month >= 3 && month <= 5) {
+          quarter = 1; // Apr-Jun
+        } else if (month >= 6 && month <= 8) {
+          quarter = 2; // Jul-Sep
+        } else if (month >= 9 && month <= 11) {
+          quarter = 3; // Oct-Dec
+        } else {
+          quarter = 4; // Jan-Mar
+        }
+        
+        // Get quarter range
+        let startMonth: number, endMonth: number;
+        if (quarter === 1) {
+          startMonth = 3; endMonth = 5;
+        } else if (quarter === 2) {
+          startMonth = 6; endMonth = 8;
+        } else if (quarter === 3) {
+          startMonth = 9; endMonth = 11;
+        } else {
+          startMonth = 0; endMonth = 2;
+        }
+        
+        const startDate = new Date(year, startMonth, 1);
+        const endDate = new Date(year, endMonth + 1, 0);
+        return `${startDate.toLocaleDateString('en-GB', { month: 'short' })} - ${endDate.toLocaleDateString('en-GB', { month: 'short' })} ${year}`;
       case '6months':
         return `${currentDate.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })} - ${new Date(currentDate.getFullYear(), currentDate.getMonth() + 5).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}`;
       case 'yearly':
@@ -267,116 +287,154 @@ export default function ExpenseOverviewScreen() {
       style={styles.container}
     >
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#0f766e" />
+      <CurvedHeader
+        title="Expense Overview"
+        rightComponent={
+          <TouchableOpacity>
+            <Ionicons name="search" size={24} color="white" />
+          </TouchableOpacity>
+        }
+      />
+
+      {/* Date Navigation */}
+      <View style={styles.yearSection}>
+        <TouchableOpacity 
+          style={styles.yearArrow}
+          onPress={() => handleDateChange('prev')}
+        >
+          <Ionicons name="chevron-back" size={24} color="#0f766e" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Expense Overview</Text>
-        <TouchableOpacity style={styles.searchButton}>
-          <Ionicons name="search" size={24} color="#0f766e" />
+        <Text style={styles.yearText}>{getDisplayText()}</Text>
+        <TouchableOpacity 
+          style={styles.yearArrow}
+          onPress={() => handleDateChange('next')}
+        >
+          <Ionicons name="chevron-forward" size={24} color="#0f766e" />
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={styles.filterButton}
+          onPress={() => setShowFilterModal(true)}
+        >
+          <Ionicons name="options-outline" size={20} color="#0f766e" />
         </TouchableOpacity>
       </View>
 
+      {/* Financial Summary - Fixed */}
+      <View style={styles.summarySection}>
+        <View style={styles.summaryItem}>
+          <Text style={styles.summaryLabel}>EXPENSE</Text>
+          <Text style={styles.expenseValue}>₹{totalExpense.toLocaleString()}</Text>
+        </View>
+        <View style={styles.summaryItem}>
+          <Text style={styles.summaryLabel}>TARGET</Text>
+          <Text style={styles.targetValue}>₹{totalTarget.toLocaleString()}</Text>
+        </View>
+        <View style={styles.summaryItem}>
+          <Text style={styles.summaryLabel}>SALES</Text>
+          <Text style={styles.salesValue}>₹{totalSales.toLocaleString()}</Text>
+        </View>
+      </View>
+
+      {/* Segmented Control - Fixed */}
+      <View style={styles.segmentedControlContainer}>
+        <View style={styles.segmentedControl}>
+          <TouchableOpacity
+            style={[
+              styles.segmentButton,
+              selectedTab === 'expense' && styles.segmentButtonActive
+            ]}
+            onPress={() => setSelectedTab('expense')}
+          >
+            <Text
+              style={[
+                styles.segmentText,
+                selectedTab === 'expense' && styles.segmentTextActive
+              ]}
+            >
+              EXPENSE
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.segmentButton,
+              selectedTab === 'sales' && styles.segmentButtonActive
+            ]}
+            onPress={() => setSelectedTab('sales')}
+          >
+            <Text
+              style={[
+                styles.segmentText,
+                selectedTab === 'sales' && styles.segmentTextActive
+              ]}
+            >
+              SALES
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.segmentButton,
+              selectedTab === 'order' && styles.segmentButtonActive
+            ]}
+            onPress={() => setSelectedTab('order')}
+          >
+            <Text
+              style={[
+                styles.segmentText,
+                selectedTab === 'order' && styles.segmentTextActive
+              ]}
+            >
+              ORDER
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Date Navigation */}
-        <View style={styles.yearSection}>
-          <TouchableOpacity 
-            style={styles.yearArrow}
-            onPress={() => handleDateChange('prev')}
-          >
-            <Ionicons name="chevron-back" size={24} color="#0f766e" />
-          </TouchableOpacity>
-          <Text style={styles.yearText}>{getDisplayText()}</Text>
-          <TouchableOpacity 
-            style={styles.yearArrow}
-            onPress={() => handleDateChange('next')}
-          >
-            <Ionicons name="chevron-forward" size={24} color="#0f766e" />
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={styles.filterButton}
-            onPress={() => setShowFilterModal(true)}
-          >
-            <Ionicons name="options-outline" size={20} color="#0f766e" />
-          </TouchableOpacity>
-        </View>
+        {/* Expense Tab - Show ExpenseFlowSection content */}
+        {selectedTab === 'expense' && (
+          <ExpenseFlowSection
+          initialViewMode={viewMode}
+          initialDate={currentDate}
+        />
+        )}
 
-        {/* Financial Summary */}
-        <View style={styles.summarySection}>
-          <View style={styles.summaryItem}>
-            <Text style={styles.summaryLabel}>EXPENSE</Text>
-            <Text style={styles.expenseValue}>₹{totalExpense.toLocaleString()}</Text>
-          </View>
-          <View style={styles.summaryItem}>
-            <Text style={styles.summaryLabel}>TARGET</Text>
-            <Text style={styles.targetValue}>₹{totalTarget.toLocaleString()}</Text>
-          </View>
-          <View style={styles.summaryItem}>
-            <Text style={styles.summaryLabel}>SALES</Text>
-            <Text style={styles.salesValue}>₹{totalSales.toLocaleString()}</Text>
-          </View>
-        </View>
-
-        {/* Overview Button */}
-        <View style={styles.overviewButtonContainer}>
-          <TouchableOpacity 
-            style={styles.overviewButton}
-            onPress={() => {
-              console.log('Expense Overview button pressed, current dropdown state:', showExpenseFlowDropdown);
-              setShowExpenseFlowDropdown(!showExpenseFlowDropdown);
-            }}
-          >
-            <Text style={styles.overviewButtonText}>EXPENSE OVERVIEW</Text>
-            <Ionicons name="chevron-down" size={16} color="#0f766e" />
-          </TouchableOpacity>
-          
-          {/* Dropdown Menu */}
-          {showExpenseFlowDropdown && (
-            <View style={styles.dropdownMenu}>
-              <TouchableOpacity 
-                style={styles.dropdownItem}
-                onPress={() => {
-                  console.log('Expense Flow selected, navigating to ExpenseFlowScreen');
-                  handleNavigateToExpenseFlow();
-                  setShowExpenseFlowDropdown(false);
-                }}
-              >
-                <Text style={styles.dropdownItemText}>EXPENSE FLOW</Text>
-              </TouchableOpacity>
+        {/* Sales Tab - Show ExpenseOverviewScreen content */}
+        {selectedTab === 'sales' && (
+          <>
+            <View style={styles.chartSection}>
+              <View style={styles.pieChartContainer}>
+                <PieChart
+                  data={pieChartData}
+                  width={screenWidth - 100}
+                  height={200}
+                  chartConfig={{ color: (opacity = 1) => `rgba(255, 255, 255, ${opacity})` }}
+                  accessor="population"
+                  backgroundColor="transparent"
+                  paddingLeft="15"
+                  center={[10, 10]}
+                  absolute
+                />
+              </View>
             </View>
-          )}
-        </View>
+            <View style={styles.expenseListSection}>
+              <Text style={styles.sectionTitle}>Expense Breakdown</Text>
+              <FlatList
+                data={expenseCategories}
+                renderItem={renderExpenseItem}
+                keyExtractor={(item) => item.id}
+                scrollEnabled={false}
+                style={styles.expenseList}
+              />
+            </View>
+          </>
+        )}
 
-        {/* Pie Chart */}
-        <View style={styles.chartSection}>
-          <View style={styles.pieChartContainer}>
-            <PieChart
-              data={pieChartData}
-              width={screenWidth - 100}
-              height={200}
-              chartConfig={{
-                color: (opacity = 1) => `rgba(255, 255, 255, ${opacity})`,
-              }}
-              accessor="population"
-              backgroundColor="transparent"
-              paddingLeft="15"
-              center={[10, 10]}
-              absolute
-            />
+        {/* Order Tab */}
+        {selectedTab === 'order' && (
+          <View style={styles.tabContent}>
+            <Text style={styles.comingSoonText}>Coming Soon</Text>
           </View>
-        </View>
-
-        {/* Expense List */}
-        <View style={styles.expenseListSection}>
-          <Text style={styles.sectionTitle}>Expense Breakdown</Text>
-          <FlatList
-            data={expenseCategories}
-            renderItem={renderExpenseItem}
-            keyExtractor={(item) => item.id}
-            scrollEnabled={false}
-            style={styles.expenseList}
-          />
-        </View>
+        )}
       </ScrollView>
 
       {/* Filter Modal */}
@@ -405,10 +463,7 @@ export default function ExpenseOverviewScreen() {
                   { key: 'daily', label: 'DAILY' },
                   { key: 'weekly', label: 'WEEKLY' },
                   { key: 'monthly', label: 'MONTHLY' },
-                  { key: 'q1', label: '1 QUARTERLY' },
-                  { key: 'q2', label: '2 QUARTERLY' },
-                  { key: 'q3', label: '3 QUARTERLY' },
-                  { key: 'q4', label: '4 QUARTERLY' },
+                  { key: 'quarterly', label: 'QUARTERLY' },
                   { key: '6months', label: '6 MONTHS' },
                   { key: 'yearly', label: 'YEARLY' },
                 ].map((option) => (
@@ -523,21 +578,71 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#10b981',
   },
-  overviewButtonContainer: {
+  segmentedControlContainer: {
     alignItems: 'center',
     marginBottom: 20,
   },
-  overviewButton: {
+  segmentedControl: {
+    flexDirection: 'row',
+    backgroundColor: '#e5e7eb',
+    borderRadius: 8,
+    padding: 4,
+    width: '100%',
+  },
+  segmentButton: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  segmentButtonActive: {
+    backgroundColor: 'white',
+  },
+  segmentText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#6b7280',
+  },
+  segmentTextActive: {
+    color: '#f97316',
+  },
+  tabContent: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 40,
+    marginBottom: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 200,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  comingSoonText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#6b7280',
+  },
+  expenseFlowButton: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: 'white',
-    paddingHorizontal: 20,
     paddingVertical: 12,
+    paddingHorizontal: 20,
     borderRadius: 8,
+    marginBottom: 20,
     borderWidth: 1,
-    borderColor: '#d1d5db',
+    borderColor: '#0f766e',
   },
-  overviewButtonText: {
+  expenseFlowButtonText: {
     fontSize: 14,
     fontWeight: '600',
     color: '#0f766e',
@@ -761,34 +866,6 @@ const styles = StyleSheet.create({
   },
   
   viewModeText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#374151',
-  },
-  dropdownMenu: {
-    position: 'absolute',
-    top: 50,
-    left: 0,
-    right: 0,
-    backgroundColor: 'white',
-    borderRadius: 8,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-    zIndex: 1000,
-  },
-  dropdownItem: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
-  },
-  dropdownItemText: {
     fontSize: 14,
     fontWeight: '500',
     color: '#374151',

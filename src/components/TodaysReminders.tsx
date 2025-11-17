@@ -15,7 +15,7 @@ interface DoctorReminder {
   name: string;
   phoneNumber: string;
   titles: string[];
-  eventType: 'birthday' | 'anniversary';
+  eventType: 'birthday' | 'anniversary' | 'both';
   eventDate: string;
   profileImage?: string;
 }
@@ -66,11 +66,20 @@ export default function TodaysReminders({ reminders }: TodaysRemindersProps) {
   };
 
   const getEventIcon = (eventType: string) => {
-    return eventType === 'birthday' ? 'gift-outline' : 'heart-outline';
+    switch (eventType) {
+      case 'birthday':
+        return 'gift-outline';
+      case 'anniversary':
+        return 'heart-outline';
+      case 'both':
+        return 'sparkles-outline';
+      default:
+        return 'calendar-outline';
+    }
   };
 
-  const getEventIconColor = (eventType: string) => {
-    return eventType === 'birthday' ? '#0f766e' : '#0f766e';
+  const getEventIconColor = (_eventType: string) => {
+    return '#0f766e';
   };
 
   if (reminders.length === 0) { 
@@ -122,7 +131,11 @@ export default function TodaysReminders({ reminders }: TodaysRemindersProps) {
                 </View>
                 <View style={styles.eventTypeContainer}>
                   <Text style={styles.eventTypeText}>
-                    {reminder.eventType === 'birthday' ? 'Birthday' : 'Anniversary'}
+                    {reminder.eventType === 'birthday'
+                      ? 'Birthday'
+                      : reminder.eventType === 'anniversary'
+                      ? 'Anniversary'
+                      : 'Birthday & Anniversary'}
                   </Text>
                 </View>
               </View>
@@ -161,7 +174,12 @@ export default function TodaysReminders({ reminders }: TodaysRemindersProps) {
 
               <View style={styles.cardFooter}>
                 <Text style={styles.todayText}>
-                  Today is {reminder.eventType === 'birthday' ? 'their birthday' : 'their anniversary'}!
+                  Today is{' '}
+                  {reminder.eventType === 'birthday'
+                    ? 'their birthday!'
+                    : reminder.eventType === 'anniversary'
+                    ? 'their anniversary!'
+                    : 'both their birthday and anniversary!'}
                 </Text>
               </View>
             </View>

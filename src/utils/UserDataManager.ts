@@ -67,7 +67,7 @@ export class UserDataManager {
       name: 'Dr. John Doe',
       role: 'MR',
       email: email,
-      company: 'MedicMap Healthcare',
+      company: 'my-app Healthcare',
       isEmailVerified: false,
       hasMPIN: false,
       monthlyTarget: 150,

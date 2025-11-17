@@ -23,6 +23,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import ButtonLoader from '../components/ButtonLoader';
+import CurvedHeader from '../components/CurvedHeader';
 import { LoginManager } from '../utils/LoginManager';
 import { DCRCache } from '../utils/DCRCache';
 
@@ -197,16 +198,7 @@ export default function DCRFormScreen() {
       style={styles.container}
     >
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Ionicons name="arrow-back" size={24} color="#374151" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Call Report</Text>
-        <View style={styles.placeholder} />
-      </View>
+      <CurvedHeader title="Call Report" />
 
       <KeyboardAvoidingView
         style={styles.keyboardContainer}
