@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation, CommonActions } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
 import CurvedHeader from '../components/CurvedHeader';
@@ -19,14 +19,6 @@ type ReportsMoreScreenNavigationProp = NativeStackNavigationProp<RootStackParamL
 export default function ReportsMoreScreen() {
   const navigation = useNavigation<ReportsMoreScreenNavigationProp>();
   const [pressedId, setPressedId] = useState<string | null>(null);
-
-  const bottomNavItems = [
-    { id: 'home', title: 'Home', icon: 'home-outline', active: false },
-    { id: 'report', title: 'Report', icon: 'document-outline', active: true },
-    { id: 'dcr', title: 'DCR', icon: 'calendar-outline', active: false },
-    { id: 'expense', title: 'Expense', icon: 'wallet-outline', active: false },
-    { id: 'calendar', title: 'Calendar', icon: 'calendar-outline', active: false },
-  ];
 
   const reportOptions = [
     {
@@ -84,12 +76,21 @@ export default function ReportsMoreScreen() {
       },
     },
     {
-      id: 'sales',
-      title: 'Sales',
-      icon: 'trending-up-outline',
+      id: 'requested-list',
+      title: 'Requested List',
+      icon: 'list-circle-outline',
       color: '#10b981', // Green
       onPress: () => {
-        Alert.alert('Sales', 'Sales functionality will be implemented');
+        navigation.navigate('RequestedList');
+      },
+    },
+    {
+      id: 'new-request',
+      title: 'New Request',
+      icon: 'document-text-outline',
+      color: '#3b82f6', // Blue
+      onPress: () => {
+        navigation.navigate('NewRequest');
       },
     },
   ];
@@ -135,45 +136,6 @@ export default function ReportsMoreScreen() {
           </View>
         </View>
       </ScrollView>
-
-      {/* Bottom Navigation */}
-      <View style={styles.bottomNav}>
-        {bottomNavItems.map((item) => (
-          <TouchableOpacity
-            key={item.id}
-            style={[styles.navItem, item.active && styles.activeNavItem]}
-            onPress={() => {
-              if (item.id === 'home') {
-                // Reset navigation stack to Home
-                navigation.dispatch(
-                  CommonActions.reset({
-                    index: 0,
-                    routes: [{ name: 'Home' }],
-                  })
-                );
-              } else if (item.id === 'report') {
-                // Already on ReportsMore screen, do nothing
-                return;
-              } else if (item.id === 'dcr') {
-                navigation.navigate('DCR');
-              } else if (item.id === 'expense') {
-                navigation.navigate('ExpenseOverview');
-              } else if (item.id === 'calendar') {
-                navigation.navigate('Calendar');
-              }
-            }}
-          >
-            <Ionicons
-              name={item.icon as any}
-              size={20}
-              color={item.active ? '#FFFFFF' : '#FFFFFF'}
-            />
-            <Text style={[styles.navText, item.active && styles.activeNavText]}>
-              {item.title}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
     </View>
   );
 }
@@ -266,33 +228,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 16,
     flexWrap: 'wrap',
-  },
-  bottomNav: {
-    flexDirection: 'row',
-    backgroundColor: '#0f766e',
-    paddingTop: 12,
-    paddingBottom: 20,
-    paddingHorizontal: 16,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-  },
-  navItem: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: 8,
-  },
-  activeNavItem: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 12,
-  },
-  navText: {
-    fontSize: 12,
-    color: '#FFFFFF',
-    marginTop: 4,
-  },
-  activeNavText: {
-    color: '#FFFFFF',
-    fontWeight: '600',
   },
 });
 

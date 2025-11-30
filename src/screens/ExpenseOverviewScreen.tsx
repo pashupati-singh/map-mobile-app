@@ -11,6 +11,7 @@ import {
   Dimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import { PieChart } from 'react-native-chart-kit';
 import { useNavigation } from '@react-navigation/native';
@@ -18,6 +19,13 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
 import CurvedHeader from '../components/CurvedHeader';
 import ExpenseFlowSection from '../components/ExpenseFlowSection';
+import { ExpenseData } from '../components/AddExpenseForm';
+import { SaleData } from '../components/AddSaleForm';
+import { gqlFetch } from '../api/graphql';
+import { GET_EXPENSE_BY_MONTHS_QUERY } from '../graphql/query/expense';
+import { GET_MY_SALES_ANALYTICS_QUERY } from '../graphql/query/salesAnalytics';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import CustomLoader from '../components/CustomLoader';
 
 interface ExpenseCategory {
   id: string;
@@ -32,13 +40,60 @@ interface ExpenseCategory {
 
 type ExpenseOverviewScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'ExpenseOverview'>;
 
+interface ExpenseDetail {
+  date: string;
+  total: number;
+  expenseId: number;
+  id: number;
+}
+
+interface ExpenseMonthData {
+  ExpenseMonth: string;
+  amount: number;
+  isApproved: boolean;
+  isCompleted: boolean;
+  details: ExpenseDetail[];
+}
+
+interface SalesAnalyticsData {
+  totalAmount: number;
+  doctorContributions: Array<{
+    doctorCompanyId: number;
+    doctorName: string;
+    totalAmount: number;
+    percentage: number;
+  }>;
+  chemistContributions: Array<{
+    chemistCompanyId: number;
+    chemistName: string;
+    totalAmount: number;
+    percentage: number;
+  }>;
+  productContributions: Array<{
+    productId: number;
+    productName: string;
+    totalAmount: number;
+    percentage: number;
+  }>;
+  areaContributions: Array<{
+    workingAreaId: number;
+    workingAreaName: string;
+    totalAmount: number;
+    percentage: number;
+  }>;
+}
+
 export default function ExpenseOverviewScreen() {
   const navigation = useNavigation<ExpenseOverviewScreenNavigationProp>();
-  const [currentYear, setCurrentYear] = useState(2025);
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [viewMode, setViewMode] = useState<'daily' | 'weekly' | 'monthly' | 'quarterly' | '6months' | 'yearly'>('yearly');
+  const [viewMode, setViewMode] = useState<'daily' | 'weekly' | 'monthly' | 'quarterly' | '6months' | 'yearly'>('monthly');
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [selectedTab, setSelectedTab] = useState<'expense' | 'sales' | 'order'>('expense');
+  const [isFabCancel, setIsFabCancel] = useState(false);
+  const [expenseData, setExpenseData] = useState<ExpenseMonthData[]>([]);
+  const [isLoadingExpenseData, setIsLoadingExpenseData] = useState(false);
+  const [salesAnalyticsData, setSalesAnalyticsData] = useState<SalesAnalyticsData | null>(null);
+  const [isLoadingSalesData, setIsLoadingSalesData] = useState(false);
 
   // Mock data for expense categories
   const expenseCategories: ExpenseCategory[] = [
@@ -135,17 +190,11 @@ export default function ExpenseOverviewScreen() {
   ];
 
   // Calculate totals
-  const totalExpense = expenseCategories.reduce((sum, category) => sum + category.amount, 0);
+  // Calculate total expense from expenseData (API data)
+  const totalExpense = expenseData.reduce((sum, monthData) => sum + (monthData.amount || 0), 0);
   const totalTarget = 500000; // Mock target
-  const totalSales = 425000; // Mock sales
+  const totalSales = salesAnalyticsData?.totalAmount || 0;
 
-  const handleYearChange = (direction: 'prev' | 'next') => {
-    if (direction === 'prev') {
-      setCurrentYear(prev => prev - 1);
-    } else {
-      setCurrentYear(prev => prev + 1);
-    }
-  };
 
   const handleDateChange = (direction: 'prev' | 'next') => {
     const newDate = new Date(currentDate);
@@ -226,23 +275,313 @@ export default function ExpenseOverviewScreen() {
     }
   };
 
-  // Prepare data for pie chart
-  const pieChartData = [
-    {
-      name: 'Doctors',
-      population: expenseCategories.filter(cat => cat.type === 'doctor').reduce((sum, cat) => sum + cat.amount, 0),
-      color: '#ef4444',
-      legendFontColor: '#7F7F7F',
-      legendFontSize: 12,
-    },
-    {
-      name: 'Chemists',
-      population: expenseCategories.filter(cat => cat.type === 'chemist').reduce((sum, cat) => sum + cat.amount, 0),
-      color: '#8b5cf6',
-      legendFontColor: '#7F7F7F',
-      legendFontSize: 12,
-    },
-  ];
+  const handleSaveExpense = (expenseData: ExpenseData) => {
+    // Handle save logic here
+    console.log('Saving expense:', expenseData);
+    console.log('Selected dates:', expenseData.dates);
+    // You can add your save logic here (API call, etc.)
+  };
+
+  const handleSaveSale = (saleData: SaleData) => {
+    // Handle save logic here
+    console.log('Saving sale:', saleData);
+    // You can add your save logic here (API call, etc.)
+  };
+
+  // Prepare data for pie charts from sales analytics
+  const getDoctorPieChartData = () => {
+    if (!salesAnalyticsData?.doctorContributions.length) return [];
+    return salesAnalyticsData.doctorContributions.map((doctor, index) => {
+      const colors = ['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16'];
+      return {
+        name: doctor.doctorName,
+        population: doctor.totalAmount,
+        color: colors[index % colors.length],
+        legendFontColor: '#7F7F7F',
+        legendFontSize: 10,
+      };
+    });
+  };
+
+  const getChemistPieChartData = () => {
+    if (!salesAnalyticsData?.chemistContributions.length) return [];
+    return salesAnalyticsData.chemistContributions.map((chemist, index) => {
+      const colors = ['#8b5cf6', '#06b6d4', '#f97316', '#ec4899', '#84cc16', '#6366f1'];
+      return {
+        name: chemist.chemistName,
+        population: chemist.totalAmount,
+        color: colors[index % colors.length],
+        legendFontColor: '#7F7F7F',
+        legendFontSize: 10,
+      };
+    });
+  };
+
+  const getProductPieChartData = () => {
+    if (!salesAnalyticsData?.productContributions.length) return [];
+    return salesAnalyticsData.productContributions.map((product, index) => {
+      const colors = ['#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16', '#6366f1'];
+      return {
+        name: product.productName,
+        population: product.totalAmount,
+        color: colors[index % colors.length],
+        legendFontColor: '#7F7F7F',
+        legendFontSize: 10,
+      };
+    });
+  };
+
+  const getAreaPieChartData = () => {
+    if (!salesAnalyticsData?.areaContributions.length) return [];
+    return salesAnalyticsData.areaContributions.map((area, index) => {
+      const colors = ['#0f766e', '#14b8a6', '#06b6d4', '#3b82f6'];
+      return {
+        name: area.workingAreaName,
+        population: area.totalAmount,
+        color: colors[index % colors.length],
+        legendFontColor: '#7F7F7F',
+        legendFontSize: 10,
+      };
+    });
+  };
+
+  // Function to format date as dd/mm/yyyy
+  const formatDateForQuery = (date: Date): string => {
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}/${month}/${year}`;
+  };
+
+  // Function to get date range for sales analytics based on viewMode
+  const getDateRangeForSalesAnalytics = (
+    date: Date,
+    mode: 'monthly' | 'quarterly' | '6months' | 'yearly'
+  ): { startDate: string; endDate: string } => {
+    let startDate: Date;
+    let endDate: Date;
+
+    switch (mode) {
+      case 'monthly': {
+        // First day of selected month to last day of selected month
+        startDate = new Date(date.getFullYear(), date.getMonth(), 1);
+        endDate = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+        break;
+      }
+      case 'quarterly': {
+        // Indian fiscal year quarters: Q1 (Apr-Jun), Q2 (Jul-Sep), Q3 (Oct-Dec), Q4 (Jan-Mar)
+        const month = date.getMonth();
+        let startMonth: number, endMonth: number;
+        let year = date.getFullYear();
+
+        if (month >= 3 && month <= 5) {
+          // Q1: Apr-Jun
+          startMonth = 3;
+          endMonth = 5;
+        } else if (month >= 6 && month <= 8) {
+          // Q2: Jul-Sep
+          startMonth = 6;
+          endMonth = 8;
+        } else if (month >= 9 && month <= 11) {
+          // Q3: Oct-Dec
+          startMonth = 9;
+          endMonth = 11;
+        } else {
+          // Q4: Jan-Mar
+          startMonth = 0;
+          endMonth = 2;
+        }
+
+        startDate = new Date(year, startMonth, 1);
+        endDate = new Date(year, endMonth + 1, 0);
+        break;
+      }
+      case '6months': {
+        // First day of selected month to last day of 6th month
+        startDate = new Date(date.getFullYear(), date.getMonth(), 1);
+        endDate = new Date(date.getFullYear(), date.getMonth() + 6, 0);
+        break;
+      }
+      case 'yearly': {
+        // First day of year to last day of year
+        startDate = new Date(date.getFullYear(), 0, 1);
+        endDate = new Date(date.getFullYear(), 11, 31);
+        break;
+      }
+      default: {
+        // Default to monthly
+        startDate = new Date(date.getFullYear(), date.getMonth(), 1);
+        endDate = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+      }
+    }
+
+    return {
+      startDate: formatDateForQuery(startDate),
+      endDate: formatDateForQuery(endDate),
+    };
+  };
+
+  // Function to get first day of a month
+  const getFirstDayOfMonth = (date: Date): string => {
+    const firstDay = new Date(date.getFullYear(), date.getMonth(), 1);
+    return formatDateForQuery(firstDay);
+  };
+
+  // Function to get dates array based on viewMode
+  const getDatesForViewMode = (date: Date, mode: string): string[] => {
+    const dates: string[] = [];
+    
+    switch (mode) {
+      case 'monthly':
+        // Single month
+        dates.push(getFirstDayOfMonth(date));
+        break;
+        
+      case 'quarterly':
+        // Indian fiscal year quarters: Q1 (Apr-Jun), Q2 (Jul-Sep), Q3 (Oct-Dec), Q4 (Jan-Mar)
+        const month = date.getMonth();
+        let quarter: number;
+        let year = date.getFullYear();
+        
+        // Determine current quarter
+        if (month >= 3 && month <= 5) {
+          quarter = 1; // Apr-Jun
+        } else if (month >= 6 && month <= 8) {
+          quarter = 2; // Jul-Sep
+        } else if (month >= 9 && month <= 11) {
+          quarter = 3; // Oct-Dec
+        } else {
+          quarter = 4; // Jan-Mar
+        }
+        
+        // Get the 3 months for this quarter
+        let startMonth: number;
+        if (quarter === 1) {
+          startMonth = 3; // April
+        } else if (quarter === 2) {
+          startMonth = 6; // July
+        } else if (quarter === 3) {
+          startMonth = 9; // October
+        } else {
+          startMonth = 0; // January
+        }
+        
+        // Add first day of each month in the quarter
+        for (let i = 0; i < 3; i++) {
+          const quarterMonth = new Date(year, startMonth + i, 1);
+          dates.push(getFirstDayOfMonth(quarterMonth));
+        }
+        break;
+        
+      case '6months':
+        // 6 months starting from selected month
+        for (let i = 0; i < 6; i++) {
+          const monthDate = new Date(date.getFullYear(), date.getMonth() + i, 1);
+          dates.push(getFirstDayOfMonth(monthDate));
+        }
+        break;
+        
+      case 'yearly':
+        // All 12 months of the year
+        for (let i = 0; i < 12; i++) {
+          const monthDate = new Date(date.getFullYear(), i, 1);
+          dates.push(getFirstDayOfMonth(monthDate));
+        }
+        break;
+        
+      default:
+        // Default to monthly
+        dates.push(getFirstDayOfMonth(date));
+    }
+    
+    return dates;
+  };
+
+  // Fetch expense data when component mounts or date/viewMode changes
+  useEffect(() => {
+    const fetchExpenseData = async () => {
+      try {
+        setIsLoadingExpenseData(true);
+        const token = await AsyncStorage.getItem('authToken');
+        if (!token) {
+          setIsLoadingExpenseData(false);
+          return;
+        }
+
+        // Get dates array based on viewMode
+        const dates = getDatesForViewMode(currentDate, viewMode);
+
+        type GetExpenseByMonthsResponse = {
+          getExpenseByMonths: {
+            code: number;
+            success: boolean;
+            message: string;
+            data: ExpenseMonthData[];
+          };
+        };
+
+        const response = await gqlFetch<GetExpenseByMonthsResponse>(
+          GET_EXPENSE_BY_MONTHS_QUERY,
+          { dates },
+          token
+        );
+
+        if (response.getExpenseByMonths.success) {
+          setExpenseData(response.getExpenseByMonths.data || []);
+        }
+      } catch (error: any) {
+        console.error('Error fetching expense data:', error);
+        setExpenseData([]);
+      } finally {
+        setIsLoadingExpenseData(false);
+      }
+    };
+
+    fetchExpenseData();
+  }, [currentDate, viewMode]);
+
+  // Fetch sales analytics data when sales tab is selected or date/viewMode changes
+  useEffect(() => {
+    const fetchSalesAnalytics = async () => {
+      if (selectedTab !== 'sales') {
+        return;
+      }
+
+      try {
+        setIsLoadingSalesData(true);
+        const token = await AsyncStorage.getItem('authToken');
+        if (!token) {
+          setIsLoadingSalesData(false);
+          return;
+        }
+
+        // Get date range based on viewMode
+        const { startDate, endDate } = getDateRangeForSalesAnalytics(
+          currentDate,
+          viewMode as 'monthly' | 'quarterly' | '6months' | 'yearly'
+        );
+
+        type GetMySalesAnalyticsResponse = {
+          getMySalesAnalytics: SalesAnalyticsData;
+        };
+
+        const response = await gqlFetch<GetMySalesAnalyticsResponse>(
+          GET_MY_SALES_ANALYTICS_QUERY,
+          { startDate, endDate },
+          token
+        );
+
+        setSalesAnalyticsData(response.getMySalesAnalytics);
+      } catch (error: any) {
+        console.error('Error fetching sales analytics data:', error);
+        setSalesAnalyticsData(null);
+      } finally {
+        setIsLoadingSalesData(false);
+      }
+    };
+
+    fetchSalesAnalytics();
+  }, [currentDate, viewMode, selectedTab]);
 
   const screenWidth = Dimensions.get('window').width;
 
@@ -392,44 +731,242 @@ export default function ExpenseOverviewScreen() {
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Expense Tab - Show ExpenseFlowSection content */}
         {selectedTab === 'expense' && (
-          <ExpenseFlowSection
-          initialViewMode={viewMode}
-          initialDate={currentDate}
-        />
-        )}
-
-        {/* Sales Tab - Show ExpenseOverviewScreen content */}
-        {selectedTab === 'sales' && (
           <>
-            <View style={styles.chartSection}>
-              <View style={styles.pieChartContainer}>
-                <PieChart
-                  data={pieChartData}
-                  width={screenWidth - 100}
-                  height={200}
-                  chartConfig={{ color: (opacity = 1) => `rgba(255, 255, 255, ${opacity})` }}
-                  accessor="population"
-                  backgroundColor="transparent"
-                  paddingLeft="15"
-                  center={[10, 10]}
-                  absolute
-                />
+            {isLoadingExpenseData ? (
+              <View style={styles.loaderContainer}>
+                <CustomLoader size={48} color="#0f766e" />
               </View>
-            </View>
-            <View style={styles.expenseListSection}>
-              <Text style={styles.sectionTitle}>Expense Breakdown</Text>
-              <FlatList
-                data={expenseCategories}
-                renderItem={renderExpenseItem}
-                keyExtractor={(item) => item.id}
-                scrollEnabled={false}
-                style={styles.expenseList}
+            ) : (
+              <ExpenseFlowSection
+                initialViewMode={viewMode}
+                initialDate={currentDate}
+                expenseData={expenseData}
               />
-            </View>
+            )}
           </>
         )}
 
-        {/* Order Tab */}
+        {/* Sales Tab - Show Sales Analytics content */}
+        {selectedTab === 'sales' && (
+          <>
+            {isLoadingSalesData ? (
+              <View style={styles.loaderContainer}>
+                <CustomLoader size={48} color="#0f766e" />
+              </View>
+            ) : salesAnalyticsData ? (
+              <>
+                {/* Doctor Contributions */}
+                {salesAnalyticsData.doctorContributions.length > 0 && (
+                  <View style={styles.salesSection}>
+                    <Text style={styles.sectionTitle}>Doctor Contributions</Text>
+                    <View style={styles.chartSection}>
+                      <View style={styles.pieChartContainer}>
+                        <PieChart
+                          data={getDoctorPieChartData()}
+                          width={screenWidth - 100}
+                          height={200}
+                          chartConfig={{ color: (opacity = 1) => `rgba(255, 255, 255, ${opacity})` }}
+                          accessor="population"
+                          backgroundColor="transparent"
+                          paddingLeft="15"
+                          center={[10, 10]}
+                          absolute
+                        />
+                      </View>
+                    </View>
+                    <View style={styles.contributionsList}>
+                      {salesAnalyticsData.doctorContributions.map((doctor, index) => (
+                        <View key={doctor.doctorCompanyId} style={styles.contributionItem}>
+                          <View style={styles.contributionItemLeft}>
+                            <View style={[styles.contributionIcon, { backgroundColor: '#ef4444' }]}>
+                              <Ionicons name="person" size={20} color="white" />
+                            </View>
+                            <View style={styles.contributionInfo}>
+                              <Text style={styles.contributionName}>{doctor.doctorName}</Text>
+                            </View>
+                          </View>
+                          <View style={styles.contributionItemRight}>
+                            <Text style={styles.contributionAmount}>₹{doctor.totalAmount.toLocaleString()}</Text>
+                            <Text style={styles.contributionPercentage}>{doctor.percentage.toFixed(1)}%</Text>
+                            <View style={styles.progressBar}>
+                              <View
+                                style={[
+                                  styles.progressFill,
+                                  {
+                                    width: `${doctor.percentage}%`,
+                                    backgroundColor: '#ef4444',
+                                  },
+                                ]}
+                              />
+                            </View>
+                          </View>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                )}
+
+                {/* Chemist Contributions */}
+                {salesAnalyticsData.chemistContributions.length > 0 && (
+                  <View style={styles.salesSection}>
+                    <Text style={styles.sectionTitle}>Chemist Contributions</Text>
+                    <View style={styles.chartSection}>
+                      <View style={styles.pieChartContainer}>
+                        <PieChart
+                          data={getChemistPieChartData()}
+                          width={screenWidth - 100}
+                          height={200}
+                          chartConfig={{ color: (opacity = 1) => `rgba(255, 255, 255, ${opacity})` }}
+                          accessor="population"
+                          backgroundColor="transparent"
+                          paddingLeft="15"
+                          center={[10, 10]}
+                          absolute
+                        />
+                      </View>
+                    </View>
+                    <View style={styles.contributionsList}>
+                      {salesAnalyticsData.chemistContributions.map((chemist, index) => (
+                        <View key={chemist.chemistCompanyId} style={styles.contributionItem}>
+                          <View style={styles.contributionItemLeft}>
+                            <View style={[styles.contributionIcon, { backgroundColor: '#8b5cf6' }]}>
+                              <Ionicons name="medical" size={20} color="white" />
+                            </View>
+                            <View style={styles.contributionInfo}>
+                              <Text style={styles.contributionName}>{chemist.chemistName}</Text>
+                            </View>
+                          </View>
+                          <View style={styles.contributionItemRight}>
+                            <Text style={styles.contributionAmount}>₹{chemist.totalAmount.toLocaleString()}</Text>
+                            <Text style={styles.contributionPercentage}>{chemist.percentage.toFixed(1)}%</Text>
+                            <View style={styles.progressBar}>
+                              <View
+                                style={[
+                                  styles.progressFill,
+                                  {
+                                    width: `${chemist.percentage}%`,
+                                    backgroundColor: '#8b5cf6',
+                                  },
+                                ]}
+                              />
+                            </View>
+                          </View>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                )}
+
+                {/* Product Contributions */}
+                {salesAnalyticsData.productContributions.length > 0 && (
+                  <View style={styles.salesSection}>
+                    <Text style={styles.sectionTitle}>Product Contributions</Text>
+                    <View style={styles.chartSection}>
+                      <View style={styles.pieChartContainer}>
+                        <PieChart
+                          data={getProductPieChartData()}
+                          width={screenWidth - 100}
+                          height={200}
+                          chartConfig={{ color: (opacity = 1) => `rgba(255, 255, 255, ${opacity})` }}
+                          accessor="population"
+                          backgroundColor="transparent"
+                          paddingLeft="15"
+                          center={[10, 10]}
+                          absolute
+                        />
+                      </View>
+                    </View>
+                    <View style={styles.contributionsList}>
+                      {salesAnalyticsData.productContributions.map((product, index) => (
+                        <View key={product.productId} style={styles.contributionItem}>
+                          <View style={styles.contributionItemLeft}>
+                            <View style={[styles.contributionIcon, { backgroundColor: '#10b981' }]}>
+                              <Ionicons name="cube" size={20} color="white" />
+                            </View>
+                            <View style={styles.contributionInfo}>
+                              <Text style={styles.contributionName}>{product.productName}</Text>
+                            </View>
+                          </View>
+                          <View style={styles.contributionItemRight}>
+                            <Text style={styles.contributionAmount}>₹{product.totalAmount.toLocaleString()}</Text>
+                            <Text style={styles.contributionPercentage}>{product.percentage.toFixed(1)}%</Text>
+                            <View style={styles.progressBar}>
+                              <View
+                                style={[
+                                  styles.progressFill,
+                                  {
+                                    width: `${product.percentage}%`,
+                                    backgroundColor: '#10b981',
+                                  },
+                                ]}
+                              />
+                            </View>
+                          </View>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                )}
+
+                {/* Area Contributions */}
+                {salesAnalyticsData.areaContributions.length > 0 && (
+                  <View style={styles.salesSection}>
+                    <Text style={styles.sectionTitle}>Area Contributions</Text>
+                    <View style={styles.chartSection}>
+                      <View style={styles.pieChartContainer}>
+                        <PieChart
+                          data={getAreaPieChartData()}
+                          width={screenWidth - 100}
+                          height={200}
+                          chartConfig={{ color: (opacity = 1) => `rgba(255, 255, 255, ${opacity})` }}
+                          accessor="population"
+                          backgroundColor="transparent"
+                          paddingLeft="15"
+                          center={[10, 10]}
+                          absolute
+                        />
+                      </View>
+                    </View>
+                    <View style={styles.contributionsList}>
+                      {salesAnalyticsData.areaContributions.map((area, index) => (
+                        <View key={area.workingAreaId} style={styles.contributionItem}>
+                          <View style={styles.contributionItemLeft}>
+                            <View style={[styles.contributionIcon, { backgroundColor: '#0f766e' }]}>
+                              <Ionicons name="location" size={20} color="white" />
+                            </View>
+                            <View style={styles.contributionInfo}>
+                              <Text style={styles.contributionName}>{area.workingAreaName}</Text>
+                            </View>
+                          </View>
+                          <View style={styles.contributionItemRight}>
+                            <Text style={styles.contributionAmount}>₹{area.totalAmount.toLocaleString()}</Text>
+                            <Text style={styles.contributionPercentage}>{area.percentage.toFixed(1)}%</Text>
+                            <View style={styles.progressBar}>
+                              <View
+                                style={[
+                                  styles.progressFill,
+                                  {
+                                    width: `${area.percentage}%`,
+                                    backgroundColor: '#0f766e',
+                                  },
+                                ]}
+                              />
+                            </View>
+                          </View>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                )}
+              </>
+            ) : (
+              <View style={styles.emptyContainer}>
+                <Ionicons name="bar-chart-outline" size={48} color="#9ca3af" />
+                <Text style={styles.emptyText}>No sales data available</Text>
+              </View>
+            )}
+          </>
+        )}
         {selectedTab === 'order' && (
           <View style={styles.tabContent}>
             <Text style={styles.comingSoonText}>Coming Soon</Text>
@@ -444,24 +981,21 @@ export default function ExpenseOverviewScreen() {
         transparent={true}
       >
         <View style={styles.modalOverlay}>
-        <View style={styles.modalContainer}>
-  <View style={styles.modalHeader}>
-    <Text style={styles.modalTitle}>Display Options</Text>
-    <TouchableOpacity onPress={() => setShowFilterModal(false)}>
-      <Ionicons name="close" size={24} color="#0f766e" />
-    </TouchableOpacity>
-  </View>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Display Options</Text>
+              <TouchableOpacity onPress={() => setShowFilterModal(false)}>
+                <Ionicons name="close" size={24} color="#0f766e" />
+              </TouchableOpacity>
+            </View>
 
-  <ScrollView
-    contentContainerStyle={styles.modalContent}
-    showsVerticalScrollIndicator={false}
-  >
-    <Text style={styles.modalSectionTitle}>View mode:</Text>
-    <View style={styles.viewModeOptions}>
-
+            <ScrollView
+              contentContainerStyle={styles.modalContent}
+              showsVerticalScrollIndicator={false}
+            >
+              <Text style={styles.modalSectionTitle}>View mode:</Text>
+              <View style={styles.viewModeOptions}>
                 {[
-                  { key: 'daily', label: 'DAILY' },
-                  { key: 'weekly', label: 'WEEKLY' },
                   { key: 'monthly', label: 'MONTHLY' },
                   { key: 'quarterly', label: 'QUARTERLY' },
                   { key: '6months', label: '6 MONTHS' },
@@ -483,13 +1017,81 @@ export default function ExpenseOverviewScreen() {
                 ))}
               </View>
             </ScrollView>
-            </View>
           </View>
+        </View>
       </Modal>
 
+      {/* Overlay for Floating Action Menu */}
+      {isFabCancel && (
+        <TouchableOpacity 
+          style={styles.fabOverlay}
+          activeOpacity={1}
+          onPress={() => setIsFabCancel(false)}
+        >
+          <BlurView intensity={20} style={styles.blurView} />
+        </TouchableOpacity>
+      )}
+
+      {/* Floating Action Menu */}
+      {isFabCancel && (
+        <View style={styles.fabMenu}>
+          <TouchableOpacity 
+            style={styles.fabMenuItem}
+            onPress={() => {
+              setIsFabCancel(false);
+              navigation.navigate('AddExpense', { mode: 'add' });
+            }}
+          >
+            <Text style={styles.fabMenuLabel}>Add Expense</Text>
+            <View style={styles.fabMenuButton}>
+              <Ionicons name="add-circle" size={24} color="white" />
+            </View>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.fabMenuItem}
+            onPress={() => {
+              setIsFabCancel(false);
+              navigation.navigate('AddSale');
+            }}
+          >
+            <Text style={styles.fabMenuLabel}>Add Sale</Text>
+            <View style={styles.fabMenuButton}>
+              <Ionicons name="cash" size={24} color="white" />
+            </View>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.fabMenuItem}>
+            <Text style={styles.fabMenuLabel}>Add Order</Text>
+            <View style={styles.fabMenuButton}>
+              <Ionicons name="cart" size={24} color="white" />
+            </View>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.fabMenuItem}>
+            <Text style={styles.fabMenuLabel}>Export Data</Text>
+            <View style={styles.fabMenuButton}>
+              <Ionicons name="download" size={24} color="white" />
+            </View>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.fabMenuItem}
+            onPress={() => {
+              setIsFabCancel(false);
+              navigation.navigate('AddExpense', { mode: 'settings' });
+            }}
+          >
+            <Text style={styles.fabMenuLabel}>Settings</Text>
+            <View style={styles.fabMenuButton}>
+              <Ionicons name="settings" size={24} color="white" />
+            </View>
+          </TouchableOpacity>
+        </View>
+      )}
+
       {/* Floating Action Button */}
-      <TouchableOpacity style={styles.fab}>
-        <Ionicons name="add" size={24} color="white" />
+      <TouchableOpacity 
+        style={styles.fab}
+        onPress={() => setIsFabCancel(!isFabCancel)}
+      >
+        <Ionicons name={isFabCancel ? "close" : "add"} size={24} color="white" />
       </TouchableOpacity>
     </LinearGradient>
   );
@@ -498,6 +1100,12 @@ export default function ExpenseOverviewScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  loaderContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 100,
   },
   header: {
     flexDirection: 'row',
@@ -807,6 +1415,69 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 4.65,
     elevation: 8,
+    zIndex: 1000,
+  },
+  fabOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 998,
+  },
+  blurView: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+  },
+  fabMenu: {
+    position: 'absolute',
+    bottom: 90,
+    right: 20,
+    alignItems: 'flex-end',
+    zIndex: 999,
+  },
+  fabMenuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  fabMenuLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1f2937',
+    marginRight: 12,
+    backgroundColor: 'white',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    width: 120,
+    height: 36,
+    textAlign: 'center',
+    lineHeight: 20,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  fabMenuButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#3b82f6',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
   filterButton: {
     padding: 8,
@@ -869,5 +1540,66 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     color: '#374151',
+  },
+  salesSection: {
+    marginBottom: 24,
+  },
+  contributionsList: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
+    marginTop: 12,
+  },
+  contributionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+  },
+  contributionItemLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  contributionIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  contributionInfo: {
+    flex: 1,
+  },
+  contributionName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1f2937',
+    marginBottom: 2,
+  },
+  contributionItemRight: {
+    alignItems: 'flex-end',
+  },
+  contributionAmount: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#10b981',
+    marginBottom: 2,
+  },
+  contributionPercentage: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginBottom: 4,
   },
 });

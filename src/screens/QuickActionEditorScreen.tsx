@@ -12,8 +12,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
-import { QuickActionManager } from '../utils/QuickActionManager';
 import CurvedHeader from '../components/CurvedHeader';
+import { gqlFetch } from '../api/graphql';
+import { CREATE_QUICK_ACTION_MUTATION } from '../graphql/mutation/quickAction';
+import { HOME_PAGE_QUERY } from '../graphql/query/home';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import ButtonLoader from '../components/ButtonLoader';
+import { HomePageCache } from '../utils/HomePageCache';
 
 type QuickActionEditorScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'QuickActionEditor'>;
 
@@ -28,6 +33,8 @@ interface QuickActionOption {
 export default function QuickActionEditorScreen() {
   const navigation = useNavigation<QuickActionEditorScreenNavigationProp>();
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   // All available options from DCR and Reports
   const allOptions: QuickActionOption[] = [
@@ -97,9 +104,9 @@ export default function QuickActionEditorScreen() {
       category: 'report',
     },
     {
-      id: 'sales',
-      title: 'Sales',
-      icon: 'trending-up-outline',
+      id: 'requested-list',
+      title: 'Requested List',
+      icon: 'list-circle-outline',
       color: '#10b981',
       category: 'report',
     },
@@ -110,11 +117,38 @@ export default function QuickActionEditorScreen() {
   }, []);
 
   const loadSelectedItems = async () => {
+    setIsLoading(true);
     try {
-      const saved = await QuickActionManager.getQuickActions();
-      setSelectedItems(saved);
+      const token = await AsyncStorage.getItem('authToken');
+      if (!token) {
+        setIsLoading(false);
+        return;
+      }
+
+      type HomePageResponse = {
+        homePage: {
+          data: {
+            quickactions?: {
+              quickAction: string[];
+            };
+          };
+          success: boolean;
+          code: number;
+        };
+      };
+
+      const response = await gqlFetch<HomePageResponse>(HOME_PAGE_QUERY, {}, token);
+      
+      if (response.homePage.success && response.homePage.data?.quickactions?.quickAction) {
+        setSelectedItems(response.homePage.data.quickactions.quickAction);
+      } else {
+        setSelectedItems([]);
+      }
     } catch (error) {
       console.error('Error loading quick actions:', error);
+      setSelectedItems([]);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -135,16 +169,58 @@ export default function QuickActionEditorScreen() {
   };
 
   const handleSave = async () => {
+    // Ensure no more than 4 items
+    const itemsToSave = selectedItems.slice(0, 4);
+    
+    if (itemsToSave.length === 0) {
+      Alert.alert('No Items Selected', 'Please select at least one item for Quick Action');
+      return;
+    }
+
+    setIsSaving(true);
     try {
-      await QuickActionManager.saveQuickActions(selectedItems);
-      Alert.alert('Success', 'Quick Action items saved successfully!', [
+      const token = await AsyncStorage.getItem('authToken');
+      if (!token) {
+        Alert.alert('Error', 'Authentication token not found. Please login again.');
+        setIsSaving(false);
+        return;
+      }
+
+      type CreateQuickActionResponse = {
+        createQuickAction: {
+          code: number;
+          success: boolean;
+          message: string;
+        };
+      };
+
+      const response = await gqlFetch<CreateQuickActionResponse>(
+        CREATE_QUICK_ACTION_MUTATION,
         {
-          text: 'OK',
-          onPress: () => navigation.goBack(),
+          data: {
+            quickAction: itemsToSave,
+          },
         },
-      ]);
-    } catch (error) {
-      Alert.alert('Error', 'Failed to save Quick Action items');
+        token
+      );
+
+      if (response.createQuickAction.success) {
+        // Clear cache so home page will fetch fresh data
+        await HomePageCache.clearHomePageData();
+        Alert.alert('Success', response.createQuickAction.message || 'Quick Action items saved successfully!', [
+          {
+            text: 'OK',
+            onPress: () => navigation.goBack(),
+          },
+        ]);
+      } else {
+        Alert.alert('Error', response.createQuickAction.message || 'Failed to save Quick Action items');
+      }
+    } catch (error: any) {
+      console.error('Error saving quick actions:', error);
+      Alert.alert('Error', error.message || 'Failed to save Quick Action items. Please try again.');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -157,23 +233,38 @@ export default function QuickActionEditorScreen() {
       <CurvedHeader
         title="Edit Quick Action"
         rightComponent={
-          <TouchableOpacity onPress={handleSave}>
-            <Text style={{ color: 'white', fontSize: 16, fontWeight: '600' }}>Save</Text>
+          <TouchableOpacity 
+            onPress={handleSave}
+            disabled={isSaving}
+            style={{ opacity: isSaving ? 0.7 : 1 }}
+          >
+            {isSaving ? (
+              <ButtonLoader size={16} color="white" />
+            ) : (
+              <Text style={{ color: 'white', fontSize: 16, fontWeight: '600' }}>Save</Text>
+            )}
           </TouchableOpacity>
         }
       />
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.infoContainer}>
-          <Ionicons name="information-circle-outline" size={20} color="#0f766e" />
-          <Text style={styles.infoText}>
-            Select up to 4 items to display in Quick Action. Tap an item to select/deselect.
-          </Text>
-        </View>
+        {isLoading ? (
+          <View style={styles.loadingContainer}>
+            <ButtonLoader size={24} color="#0f766e" />
+            <Text style={styles.loadingText}>Loading quick actions...</Text>
+          </View>
+        ) : (
+          <>
+            <View style={styles.infoContainer}>
+              <Ionicons name="information-circle-outline" size={20} color="#0f766e" />
+              <Text style={styles.infoText}>
+                Select up to 4 items to display in Quick Action. Tap an item to select/deselect.
+              </Text>
+            </View>
 
-        <Text style={styles.selectedCount}>
-          Selected: {selectedItems.length} / 4
-        </Text>
+            <Text style={styles.selectedCount}>
+              Selected: {selectedItems.length} / 4
+            </Text>
 
         {/* DCR Section */}
         <View style={styles.section}>
@@ -248,6 +339,8 @@ export default function QuickActionEditorScreen() {
             })}
           </View>
         </View>
+          </>
+        )}
       </ScrollView>
     </View>
   );
@@ -370,6 +463,17 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: '#374151',
     textAlign: 'center',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 100,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: '#6b7280',
   },
 });
 

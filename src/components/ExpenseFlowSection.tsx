@@ -10,22 +10,90 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LineChart } from 'react-native-chart-kit';
+import { gqlFetch } from '../api/graphql';
+import { COMPLETE_EXPENSE_MUTATION } from '../graphql/mutation/expense';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import ButtonLoader from './ButtonLoader';
+
+interface ExpenseDetail {
+  date: string;
+  total: number;
+  expenseId: number;
+  id: number;
+}
+
+interface ExpenseMonthData {
+  ExpenseMonth: string;
+  amount: number;
+  isApproved: boolean;
+  isCompleted: boolean;
+  details: ExpenseDetail[];
+}
 
 interface ExpenseFlowSectionProps {
   initialViewMode: 'daily' | 'weekly' | 'monthly' | 'quarterly' | '6months' | 'yearly';
   initialDate: Date;
+  expenseData?: ExpenseMonthData[];
 }
 
-export default function ExpenseFlowSection({ initialViewMode, initialDate }: ExpenseFlowSectionProps) {
+export default function ExpenseFlowSection({ initialViewMode, initialDate, expenseData = [] }: ExpenseFlowSectionProps) {
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [selectedViewMode, setSelectedViewMode] = useState(initialViewMode);
   const [selectedDate, setSelectedDate] = useState(initialDate);
+  const [completingExpenseId, setCompletingExpenseId] = useState<number | null>(null);
+  const [localExpenseData, setLocalExpenseData] = useState<ExpenseMonthData[]>(expenseData);
 
   // Sync with parent component's date and viewMode changes
   useEffect(() => {
     setSelectedViewMode(initialViewMode);
     setSelectedDate(initialDate);
   }, [initialViewMode, initialDate]);
+
+  // Sync expenseData from parent
+  useEffect(() => {
+    setLocalExpenseData(expenseData);
+  }, [expenseData]);
+
+  // Handle complete expense
+  const handleCompleteExpense = async (expenseId: number) => {
+    try {
+      setCompletingExpenseId(expenseId);
+      const token = await AsyncStorage.getItem('authToken');
+      if (!token) {
+        return;
+      }
+
+      type CompleteExpenseResponse = {
+        completeExpense: {
+          code: number;
+          success: boolean;
+          message: string;
+        };
+      };
+
+      const response = await gqlFetch<CompleteExpenseResponse>(
+        COMPLETE_EXPENSE_MUTATION,
+        { expenseId },
+        token
+      );
+
+      if (response.completeExpense.success) {
+        // Update local state to mark expense as completed
+        setLocalExpenseData(prevData =>
+          prevData.map(monthData => ({
+            ...monthData,
+            isCompleted: monthData.details.some(detail => detail.expenseId === expenseId) 
+              ? true 
+              : monthData.isCompleted
+          }))
+        );
+      }
+    } catch (error: any) {
+      console.error('Error completing expense:', error);
+    } finally {
+      setCompletingExpenseId(null);
+    }
+  };
 
   // Mock expense data for different time periods
   const getExpenseData = () => {
@@ -148,12 +216,12 @@ export default function ExpenseFlowSection({ initialViewMode, initialDate }: Exp
     return data;
   };
 
-  const expenseData = getExpenseData();
+  const chartExpenseData = getExpenseData();
 
   const chartData = {
-    labels: expenseData.map(item => item.date),
+    labels: chartExpenseData.map(item => item.date),
     datasets: [{
-      data: expenseData.map(item => item.value),
+      data: chartExpenseData.map(item => item.value),
       color: (opacity = 1) => `rgba(239, 68, 68, ${opacity})`,
       strokeWidth: 2,
     }],
@@ -341,6 +409,23 @@ export default function ExpenseFlowSection({ initialViewMode, initialDate }: Exp
     return months;
   };
 
+  // Create a map of date (timestamp at UTC midnight) to total expense
+  const getExpenseMap = () => {
+    const expenseMap = new Map<number, number>();
+    
+    localExpenseData.forEach((monthData) => {
+      monthData.details.forEach((detail) => {
+        const dateTimestamp = parseInt(detail.date);
+        const date = new Date(dateTimestamp);
+        const utcMidnight = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+        const existingTotal = expenseMap.get(utcMidnight) || 0;
+        expenseMap.set(utcMidnight, existingTotal + detail.total);
+      });
+    });
+    
+    return expenseMap;
+  };
+
   const getCalendarData = (month: Date) => {
     const year = month.getFullYear();
     const monthIndex = month.getMonth();
@@ -349,26 +434,37 @@ export default function ExpenseFlowSection({ initialViewMode, initialDate }: Exp
     const daysInMonth = lastDay.getDate();
     const startDay = firstDay.getDay();
     const calendar = [];
+    
+    // Get expense map for this month
+    const expenseMap = getExpenseMap();
+    
     for (let i = 0; i < startDay; i++) {
       calendar.push(null);
     }
     for (let day = 1; day <= daysInMonth; day++) {
       const date = new Date(year, monthIndex, day);
-      const expense = Math.random() * 50000 + 10000;
+      // Normalize to UTC midnight for comparison with API timestamps
+      const utcMidnight = Date.UTC(year, monthIndex, day);
+      
+      // Get expense for this date from the map
+      const expense = expenseMap.get(utcMidnight) || 0;
+      
       calendar.push({
         day,
         date,
-        expense: Math.random() > 0.7 ? expense : 0,
+        expense,
       });
     }
     return calendar;
   };
 
   const formatExpenseValue = (value: number) => {
-    if (value >= 1000) {
-      return `-${(value / 1000).toFixed(1)}k`;
+    if (value < 1000) {
+      return `₹${value.toString()}`;
     }
-    return `-${value.toFixed(0)}`;
+    // Round to nearest integer for k format
+    const kValue = Math.round(value / 1000);
+    return `₹${kValue}k`;
   };
 
   const screenWidth = Dimensions.get('window').width;
@@ -403,12 +499,98 @@ export default function ExpenseFlowSection({ initialViewMode, initialDate }: Exp
 
       {/* Calendar Section */}
       <View style={styles.calendarSection}>
-        {getCalendarMonths().map((month, monthIndex) => (
-          <View key={monthIndex} style={styles.monthContainer}>
-            <Text style={styles.monthTitle}>
-              {month.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}
-            </Text>
-            <View style={styles.calendarGrid}>
+        {getCalendarMonths().map((month, monthIndex) => {
+          // Calculate total amount for this month
+          const monthYear = month.getFullYear();
+          const monthNum = month.getMonth();
+          
+          // Find expense data for this month
+          const monthExpenseData = localExpenseData.find(monthData => {
+            // Check if any detail dates fall in this month
+            return monthData.details.some(detail => {
+              const detailDate = new Date(parseInt(detail.date));
+              return detailDate.getFullYear() === monthYear && detailDate.getMonth() === monthNum;
+            });
+          });
+
+          const monthTotal = localExpenseData.reduce((sum, monthData) => {
+            // Check if this month's data matches the calendar month
+            // We'll match by checking if any detail dates fall in this month
+            const hasDataForMonth = monthData.details.some(detail => {
+              const detailDate = new Date(parseInt(detail.date));
+              return detailDate.getFullYear() === monthYear && detailDate.getMonth() === monthNum;
+            });
+            
+            if (hasDataForMonth) {
+              return sum + (monthData.amount || 0);
+            }
+            return sum;
+          }, 0);
+
+          const isCompleted = monthExpenseData?.isCompleted ?? true;
+          const isApproved = monthExpenseData?.isApproved ?? false;
+          const expenseId = monthExpenseData?.details[0]?.expenseId;
+          
+          // Determine status - only apply colors if expense data exists
+          let statusText = '';
+          let statusStyle = null;
+          if (monthExpenseData) {
+            if (!isCompleted) {
+              statusText = '';
+              statusStyle = styles.monthContainerIncomplete;
+            } else if (isCompleted && isApproved) {
+              statusText = 'Approved';
+              statusStyle = styles.monthContainerApproved;
+            } else if (isCompleted && !isApproved) {
+              statusText = 'Pending';
+              statusStyle = styles.monthContainerPendingApproval;
+            }
+          }
+          // If no expense data, statusStyle remains null (white background)
+          
+          return (
+            <View 
+              key={monthIndex} 
+              style={[
+                styles.monthContainer,
+                statusStyle
+              ]}
+            >
+              <View style={styles.monthHeader}>
+                <View style={styles.monthHeaderLeft}>
+                  <View style={styles.monthTitleRow}>
+                    <Text style={styles.monthTitle}>
+                      {month.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}
+                    </Text>
+                    {statusText && (
+                      <Text style={[
+                        styles.statusBadge,
+                        isApproved && styles.statusBadgeApproved,
+                        !isApproved && isCompleted && styles.statusBadgePending
+                      ]}>
+                        {statusText}
+                      </Text>
+                    )}
+                  </View>
+                  <Text style={styles.monthExpense}>
+                    Expense: ₹{monthTotal.toLocaleString()}
+                  </Text>
+                </View>
+                {!isCompleted && expenseId && (
+                  <TouchableOpacity
+                    style={styles.completeButton}
+                    onPress={() => handleCompleteExpense(expenseId)}
+                    disabled={completingExpenseId === expenseId}
+                  >
+                    {completingExpenseId === expenseId ? (
+                      <ButtonLoader size={16} color="#ffffff" />
+                    ) : (
+                      <Text style={styles.completeButtonText}>Complete</Text>
+                    )}
+                  </TouchableOpacity>
+                )}
+              </View>
+              <View style={styles.calendarGrid}>
               {/* Days of week header */}
               <View style={styles.weekHeader}>
                 {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
@@ -437,7 +619,8 @@ export default function ExpenseFlowSection({ initialViewMode, initialDate }: Exp
               </View>
             </View>
           </View>
-        ))}
+          );
+        })}
       </View>
 
       {/* Filter Modal */}
@@ -569,12 +752,71 @@ const styles = StyleSheet.create({
     shadowRadius: 3.84,
     elevation: 5,
   },
+  monthHeader: {
+    marginBottom: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  monthHeaderLeft: {
+    flex: 1,
+  },
+  monthTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   monthTitle: {
     fontSize: 16,
     fontWeight: 'bold',
     color: '#1f2937',
-    marginBottom: 12,
-    textAlign: 'center',
+    textAlign: 'left',
+  },
+  monthExpense: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#ef4444',
+    textAlign: 'left',
+    marginTop: 4,
+  },
+  monthContainerIncomplete: {
+    backgroundColor: '#fef3c7', // Light yellow - not completed yet
+  },
+  monthContainerPendingApproval: {
+    backgroundColor: '#fed7aa', // Light orange - completed but pending approval
+  },
+  monthContainerApproved: {
+    backgroundColor: '#d1fae5', // Light green - approved
+  },
+  statusBadge: {
+    fontSize: 11,
+    fontWeight: '600',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  statusBadgeApproved: {
+    backgroundColor: '#10b981',
+    color: 'white',
+  },
+  statusBadgePending: {
+    backgroundColor: '#f59e0b',
+    color: 'white',
+  },
+  completeButton: {
+    backgroundColor: '#0f766e',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    minWidth: 80,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  completeButtonText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: '600',
   },
   calendarGrid: {
     flex: 1,

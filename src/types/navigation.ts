@@ -8,6 +8,8 @@ export type RootStackParamList = {
   ChemistProfile: { chemistId: string };
   DCRForm: { planData: any } | undefined;
   ExpenseOverview: undefined;
+  AddExpense: { mode?: 'add' | 'settings' } | undefined;
+  AddSale: undefined;
   Calendar: undefined;
   Notifications: undefined;
   SetReminder: { onSubmit?: (data: any) => void } | undefined;
@@ -22,6 +24,8 @@ export type RootStackParamList = {
   PlanDetail: { planId: number };
   Products: undefined;
   ProductDetail: { productId: number };
+  NewRequest: undefined;
+  RequestedList: undefined;
 };
 
 declare global {

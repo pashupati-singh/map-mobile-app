@@ -2,6 +2,7 @@ import { LoginManager } from '../utils/LoginManager';
 import { AuthHandler } from '../utils/AuthHandler';
 
 export const GRAPHQL_URL = 'https://maps-gray.vercel.app/api/graphql';
+// export const GRAPHQL_URL = 'http://localhost:4000/api/graphql';
 
 type GQLError = { message: string };
 
@@ -16,11 +17,9 @@ export async function gqlFetch<T>(
     ...(token ? { authorization: `Bearer ${token}` } : {}),
   };
 
-  // Add company ID header for non-login calls
   if (!skipCompanyId) {
     const companyId = await LoginManager.getCompanyId();
     if (!companyId) {
-      // Company ID is missing, trigger logout
       AuthHandler.triggerLogout();
       throw new Error('Company ID is missing. Please login again.');
     }

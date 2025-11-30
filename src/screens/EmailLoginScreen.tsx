@@ -196,6 +196,7 @@ export default function EmailLoginScreen({ onLoginSuccess, onSwitchToMPIN }: Ema
         }
       }
     } catch (error: any) {
+      console.log(error);
       Alert.alert('Error', error?.message || 'Login failed. Please try again.');
     } finally {
       setIsLoading(false);

@@ -25,12 +25,13 @@ import { LoginManager } from '../utils/LoginManager';
 import { SetReminderForm } from '../forms';
 import { ReminderManager, UserReminder } from '../utils/ReminderManager';
 import { createSearchSuggestions, SearchSuggestion } from '../utils/SearchSuggestions';
-import { QuickActionManager, QuickActionItem } from '../utils/QuickActionManager';
+import { QuickActionItem } from '../utils/QuickActionManager';
 import { gqlFetch } from '../api/graphql';
 import { HOME_PAGE_QUERY } from '../graphql/query/home';
 import { CREATE_REMINDAR_MUTATION } from '../graphql/mutation/reminder';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import HomeSkeleton from '../components/HomeSkeleton';
+import { HomePageCache } from '../utils/HomePageCache';
 
 interface HomeScreenProps {
   onLogout: () => void;
@@ -164,28 +165,17 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
     ];
   };
 
-  const loadQuickActions = async () => {
-    try {
-      const selectedIds = await QuickActionManager.getQuickActions();
-      const allOptions = getAllQuickActionOptions();
-      const selectedItems = allOptions.filter((item) => selectedIds.includes(item.id));
-      setQuickActionItems(selectedItems);
-    } catch (error) {
-      console.error('Error loading quick actions:', error);
-    }
-  };
-
   useEffect(() => {
     loadUserData();
     initializeSearchSuggestions();
     loadHomePageData();
-    loadQuickActions();
   }, []);
 
-  // Reload quick actions when screen comes into focus
+  // Reload home page data when screen comes into focus (use cache if available)
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
-      loadQuickActions();
+      // Use cache when coming back to home page, don't force refresh
+      loadHomePageData(false, false);
     });
     return unsubscribe;
   }, [navigation]);
@@ -223,68 +213,63 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
     }
   };
 
-  const loadHomePageData = async (isRefreshing: boolean = false) => {
-    try {
-      if (isRefreshing) {
-        setRefreshing(true);
-      } else {
-        setLoadingHomeData(true);
-      }
-      const token = await AsyncStorage.getItem('authToken');
-      if (!token) {
-        if (isRefreshing) {
-          setRefreshing(false);
-        } else {
-          setLoadingHomeData(false);
-        }
-        return;
-      }
-
-      type HomePageResponse = {
-        homePage: {
-          data: {
-            events: Array<{
-              email: string;
-              phone: string;
-              dob?: string;
-              anniversary?: string;
-              type?: string;
-              doctor?: { name: string; titles: string[] };
-              chemist?: { name: string; titles: string[]; status?: string };
-            }>;
-            remindars: Array<{
-              remindAt: string;
-              heading: string;
-              message: string;
-            }>;
-            dailyplans: Array<{
-              isApproved: boolean;
-              workTogether: boolean;
-              isWorkTogetherConfirmed: boolean;
-              isRejected: boolean;
-              planDate: string;
-              notes: string;
-              doctors: Array<{
-                doctorCompanyId: number;
-                dcr: boolean;
-                DoctorCompany: { email: string; phone: string };
-              }>;
-              chemists: Array<{
-                id: number;
-                dcr: boolean;
-                ChemistCompany: { email: string; phone: string; dob?: string; anniversary?: string };
-              }>;
-            }>;
-          };
-          success: boolean;
-          code: number;
+  type HomePageResponse = {
+    homePage: {
+      data: {
+        quickactions?: {
+          quickAction: string[];
         };
+        events: Array<{
+          email: string;
+          phone: string;
+          dob?: string;
+          anniversary?: string;
+          type?: string;
+          doctor?: { name: string; titles: string[] };
+          chemist?: { name: string; titles: string[]; status?: string };
+        }>;
+        remindars: Array<{
+          remindAt: string;
+          heading: string;
+          message: string;
+        }>;
+        dailyplans: Array<{
+          isApproved: boolean;
+          workTogether: boolean;
+          isWorkTogetherConfirmed: boolean;
+          isRejected: boolean;
+          planDate: string;
+          notes: string;
+          doctors: Array<{
+            doctorCompanyId: number;
+            dcr: boolean;
+            DoctorCompany: { email: string; phone: string };
+          }>;
+          chemists: Array<{
+            id: number;
+            dcr: boolean;
+            ChemistCompany: { email: string; phone: string; dob?: string; anniversary?: string };
+          }>;
+        }>;
       };
+      success: boolean;
+      code: number;
+    };
+  };
 
-      const response = await gqlFetch<HomePageResponse>(HOME_PAGE_QUERY, {}, token);
-      
-      if (response.homePage.success && response.homePage.data) {
-          const { events, remindars, dailyplans } = response.homePage.data;
+  const processHomePageData = (response: HomePageResponse) => {
+    if (response.homePage.success && response.homePage.data) {
+      const { events, remindars, dailyplans, quickactions } = response.homePage.data;
+
+        // Load quick actions from API response
+        if (quickactions && quickactions.quickAction) {
+          const selectedIds = quickactions.quickAction;
+          const allOptions = getAllQuickActionOptions();
+          const selectedItems = allOptions.filter((item) => selectedIds.includes(item.id));
+          setQuickActionItems(selectedItems);
+        } else {
+          setQuickActionItems([]);
+        }
 
         // Transform events to todaysReminders format
         const transformedEvents = events.map((event, index) => {
@@ -434,14 +419,55 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
           });
         });
         
-        setDailyPlans(transformedPlans);
+      setDailyPlans(transformedPlans);
+    }
+  };
+
+  const loadHomePageData = async (isRefreshing: boolean = false, forceRefresh: boolean = false) => {
+    try {
+      const token = await AsyncStorage.getItem('authToken');
+      if (!token) {
+        if (isRefreshing) {
+          setRefreshing(false);
+        } else {
+          setLoadingHomeData(false);
+        }
+        return;
       }
+
+      // Check cache first if not forcing refresh
+      if (!forceRefresh && !isRefreshing) {
+        const cachedData = await HomePageCache.getHomePageData<HomePageResponse>();
+        if (cachedData) {
+          // Use cached data immediately
+          processHomePageData(cachedData);
+          setLoadingHomeData(false);
+          // Still fetch fresh data in background
+          loadHomePageData(false, true);
+          return;
+        }
+      }
+
+      // Show loading only if no cache or forcing refresh
+      if (isRefreshing) {
+        setRefreshing(true);
+      } else if (!forceRefresh) {
+        // Only show loading if not a background refresh
+        setLoadingHomeData(true);
+      }
+
+      const response = await gqlFetch<HomePageResponse>(HOME_PAGE_QUERY, {}, token);
+      
+      // Process and cache the response
+      processHomePageData(response);
+      await HomePageCache.setHomePageData(response);
     } catch (error) {
       console.error('Error loading home page data:', error);
     } finally {
       if (isRefreshing) {
         setRefreshing(false);
-      } else {
+      } else if (!forceRefresh) {
+        // Only reset loading if we showed it
         setLoadingHomeData(false);
       }
     }
@@ -449,7 +475,8 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
 
   const onRefresh = async () => {
     await loadUserData();
-    await loadHomePageData(true);
+    // Force refresh on pull-to-refresh
+    await loadHomePageData(true, true);
     await loadUserReminders();
   };
 
@@ -654,14 +681,6 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
       color: '#64748b', // Slate for more options - professional neutral
       onPress: () => navigation.navigate('ReportsMore'),
     },
-  ];
-
-  const bottomNavItems = [
-    { id: 'home', title: 'Home', icon: 'home-outline', active: true },
-    { id: 'report', title: 'Report', icon: 'document-outline', active: false },
-    { id: 'dcr', title: 'DCR', icon: 'calendar-outline', active: false },
-    { id: 'expense', title: 'Expense', icon: 'wallet-outline', active: false },
-    { id: 'calendar', title: 'Calendar', icon: 'calendar-outline', active: false },
   ];
 
   if (!userData && !loading) {
@@ -997,39 +1016,6 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
 
         </ScrollView>
       )}
-
-      {/* Bottom Navigation */}
-      <View style={styles.bottomNav}>
-        {bottomNavItems.map((item) => (
-          <TouchableOpacity
-            key={item.id}
-            style={[styles.navItem, item.active && styles.activeNavItem]}
-            onPress={() => {
-              if (item.id === 'home') {
-                // Already on Home screen, do nothing
-                return;
-              } else if (item.id === 'report') {
-                navigation.navigate('ReportsMore');
-              } else if (item.id === 'dcr') {
-                navigation.navigate('DCR');
-              } else if (item.id === 'expense') {
-                navigation.navigate('ExpenseOverview');
-              } else if (item.id === 'calendar') {
-                navigation.navigate('Calendar');
-              }
-            }}
-          >
-            <Ionicons
-              name={item.icon as any}
-              size={20}
-              color={item.active ? '#FFFFFF' : '#FFFFFF'}
-            />
-            <Text style={[styles.navText, item.active && styles.activeNavText]}>
-              {item.title}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
 
       {/* User Profile Sidebar */}
       <UserProfileSidebar
@@ -1653,32 +1639,5 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#6b7280',
     marginLeft: 4,
-  },
-  bottomNav: {
-    flexDirection: 'row',
-    backgroundColor: '#0f766e',
-    paddingTop: 12,
-    paddingBottom: 20,
-    paddingHorizontal: 16,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-  },
-  navItem: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: 8,
-  },
-  activeNavItem: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 12,
-  },
-  navText: {
-    fontSize: 12,
-    color: '#FFFFFF',
-    marginTop: 4,
-  },
-  activeNavText: {
-    color: '#FFFFFF',
-    fontWeight: '600',
   },
 });

@@ -2,6 +2,9 @@ export const HOME_PAGE_QUERY = `
   query HomePageQuery {
     homePage {
       data {
+      quickactions {
+        quickAction
+      }
         events {
           ... on DoctorCompany {
             email

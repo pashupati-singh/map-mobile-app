@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { View } from 'react-native';
+import { View, StyleSheet } from 'react-native';
+import BottomNavBar from './src/components/BottomNavBar';
 import SplashScreen from './src/components/SplashScreen';
 import EmailLoginScreen from './src/screens/EmailLoginScreen';
 import MPINLoginScreen from './src/screens/MPINLoginScreen';
@@ -13,6 +14,8 @@ import DoctorProfileScreen from './src/screens/DoctorProfileScreen';
 import ChemistProfileScreen from './src/screens/ChemistProfileScreen';
 import DCRFormScreen from './src/screens/DCRFormScreen';
 import ExpenseOverviewScreen from './src/screens/ExpenseOverviewScreen';
+import AddExpenseForm from './src/components/AddExpenseForm';
+import AddSaleForm from './src/components/AddSaleForm';
 import CalendarScreen from './src/screens/CalendarScreen';
 import NotificationsScreen from './src/screens/NotificationsScreen';
 import { SetReminderForm } from './src/forms';
@@ -25,6 +28,8 @@ import OldRemindersScreen from './src/screens/OldRemindersScreen';
 import UpcomingEventsScreen from './src/screens/UpcomingEventsScreen';
 import ProductsScreen from './src/screens/ProductsScreen';
 import ProductDetailScreen from './src/screens/ProductDetailScreen';
+import NewRequestScreen from './src/screens/NewRequestScreen';
+import RequestedListScreen from './src/screens/RequestedListScreen';
 import SuccessNotification from './src/components/SuccessNotification';
 import { LoginManager } from './src/utils/LoginManager';
 import { UserDataManager } from './src/utils/UserDataManager';
@@ -46,6 +51,7 @@ export default function App() {
   const [showSuccessNotification, setShowSuccessNotification] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [showVerification, setShowVerification] = useState(false);
+  const [currentRoute, setCurrentRoute] = useState<string>('Home');
 
   const handleLogout = useCallback(() => {
     setIsLoggedIn(false);
@@ -128,13 +134,23 @@ export default function App() {
 
   if (isLoggedIn) {
     return (
-      <NavigationContainer>
-        <Stack.Navigator
-          screenOptions={{
-            headerShown: false,
-            animation: 'slide_from_right',
-          }}
-        >
+      <NavigationContainer
+        onStateChange={(state) => {
+          if (state && state.routes && state.routes.length > 0) {
+            const route = state.routes[state.index];
+            if (route && route.name) {
+              setCurrentRoute(route.name);
+            }
+          }
+        }}
+      >
+        <View style={styles.appContainer}>
+          <Stack.Navigator
+            screenOptions={{
+              headerShown: false,
+              animation: 'slide_from_right',
+            }}
+          >
           <Stack.Screen 
             name="Home" 
             options={{ headerShown: false }}
@@ -174,6 +190,16 @@ export default function App() {
           <Stack.Screen 
             name="ExpenseOverview" 
             component={ExpenseOverviewScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen 
+            name="AddExpense" 
+            component={AddExpenseForm}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen 
+            name="AddSale" 
+            component={AddSaleForm}
             options={{ headerShown: false }}
           />
           <Stack.Screen 
@@ -233,8 +259,20 @@ export default function App() {
             component={ProductDetailScreen}
             options={{ headerShown: false }}
           />
+          <Stack.Screen 
+            name="NewRequest" 
+            component={NewRequestScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen 
+            name="RequestedList" 
+            component={RequestedListScreen}
+            options={{ headerShown: false }}
+          />
           
-        </Stack.Navigator>
+          </Stack.Navigator>
+          <BottomNavBar currentRoute={currentRoute} />
+        </View>
       </NavigationContainer>
     );
   }
@@ -262,3 +300,9 @@ export default function App() {
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  appContainer: {
+    flex: 1,
+  },
+});

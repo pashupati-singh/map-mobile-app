@@ -52,12 +52,6 @@ interface Chemist {
   profileImage?: string;
 }
 
-interface ABM {
-  id: number;
-  name: string;
-  email: string;
-}
-
 interface WorkingArea {
   id: number;
   state: string;
@@ -90,18 +84,8 @@ export default function DailyPlansForm() {
   
   // Step 2 states
   const [workTogether, setWorkTogether] = useState(false);
-  const [selectedABMId, setSelectedABMId] = useState<number | null>(null);
   const [notes, setNotes] = useState('');
   const [planDate, setPlanDate] = useState<Date>(new Date());
-
-  // Mock ABM data
-  const abms: ABM[] = [
-    { id: 1, name: 'John Manager', email: 'john.manager@medicmap.com' },
-    { id: 2, name: 'Sarah Manager', email: 'sarah.manager@medicmap.com' },
-    { id: 3, name: 'Mike Manager', email: 'mike.manager@medicmap.com' },
-    { id: 4, name: 'Emily Manager', email: 'emily.manager@medicmap.com' },
-    { id: 9, name: 'Alex Manager', email: 'alex.manager@medicmap.com' },
-  ];
 
   // Helper function to get dummy profile image
   const getDummyProfileImage = (name: string, type: 'doctor' | 'chemist'): string => {
@@ -370,12 +354,6 @@ export default function DailyPlansForm() {
       // Dismiss keyboard
       Keyboard.dismiss();
       
-      // Validate ABM selection ONLY if workTogether is true
-      if (workTogether && !selectedABMId) {
-        Alert.alert('ABM Required', 'Please select an ABM when "Work With Manager" is enabled.');
-        return;
-      }
-
       setSubmitting(true);
       const token = await AsyncStorage.getItem('authToken');
       if (!token) {
@@ -423,7 +401,7 @@ export default function DailyPlansForm() {
           chemistCompanyIds: selectedChemists.map(id => parseInt(id)),
           planDate: formatDateForAPI(planDate),
           notes: notes || '',
-          abmId: selectedABMId,
+          // abmId: abmId,
           workTogether: workTogether,
           workingAreaId: cachedWorkingArea.id,
         },
@@ -654,7 +632,7 @@ export default function DailyPlansForm() {
                 <View style={styles.toggleLabelContainer}>
                   <Text style={styles.toggleLabel}>Work With Manager</Text>
                   <Text style={styles.toggleDescription}>
-                    Enable if you want to work together with an ABM
+                    Enable if you want to work together with a manager
                   </Text>
                 </View>
                 <Switch
@@ -664,46 +642,6 @@ export default function DailyPlansForm() {
                   thumbColor={workTogether ? '#0f766e' : '#f4f3f4'}
                 />
               </View>
-
-              {/* ABM Selection */}
-              {workTogether && (
-                <View style={styles.abmSection}>
-                  <Text style={styles.sectionLabel}>Select ABM</Text>
-                  <ScrollView 
-                    style={styles.abmList}
-                    showsVerticalScrollIndicator={false}
-                  >
-                    {abms.map((abm) => (
-                      <TouchableOpacity
-                        key={abm.id}
-                        style={[
-                          styles.abmItem,
-                          selectedABMId === abm.id && styles.abmItemSelected
-                        ]}
-                        onPress={() => {
-                          Keyboard.dismiss();
-                          setSelectedABMId(abm.id);
-                        }}
-                      >
-                        <View style={styles.abmItemLeft}>
-                          <View style={[
-                            styles.abmRadio,
-                            selectedABMId === abm.id && styles.abmRadioSelected
-                          ]}>
-                            {selectedABMId === abm.id && (
-                              <View style={styles.abmRadioInner} />
-                            )}
-                          </View>
-                          <View style={styles.abmInfo}>
-                            <Text style={styles.abmName}>{abm.name}</Text>
-                            <Text style={styles.abmEmail}>{abm.email}</Text>
-                          </View>
-                        </View>
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
-                </View>
-              )}
 
               {/* Notes */}
               <View style={styles.notesSection}>
@@ -869,36 +807,28 @@ const styles = StyleSheet.create({
   },
   tabContainer: {
     flexDirection: 'row',
-    backgroundColor: 'white',
+    backgroundColor: '#e5e7eb',
     marginHorizontal: 20,
-    borderRadius: 12,
+    borderRadius: 8,
     padding: 4,
     marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 4,
   },
   tab: {
     flex: 1,
-    paddingVertical: 12,
+    paddingVertical: 10,
     alignItems: 'center',
-    borderRadius: 8,
+    borderRadius: 6,
   },
   activeTab: {
-    backgroundColor: '#0f766e',
+    backgroundColor: 'white',
   },
   tabText: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
     color: '#6b7280',
   },
   activeTabText: {
-    color: 'white',
+    color: '#f97316',
   },
   content: {
     flex: 1,
@@ -1151,73 +1081,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6b7280',
   },
-  abmSection: {
-    marginBottom: 20,
-  },
   sectionLabel: {
     fontSize: 16,
     fontWeight: '600',
     color: '#1f2937',
     marginBottom: 12,
-  },
-  abmList: {
-    maxHeight: 200,
-  },
-  abmItem: {
-    backgroundColor: 'white',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
-    borderWidth: 2,
-    borderColor: '#e5e7eb',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  abmItemSelected: {
-    borderColor: '#0f766e',
-    backgroundColor: '#f0fdfa',
-  },
-  abmItemLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  abmRadio: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: '#d1d5db',
-    marginRight: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  abmRadioSelected: {
-    borderColor: '#0f766e',
-  },
-  abmRadioInner: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: '#0f766e',
-  },
-  abmInfo: {
-    flex: 1,
-  },
-  abmName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1f2937',
-    marginBottom: 4,
-  },
-  abmEmail: {
-    fontSize: 14,
-    color: '#6b7280',
   },
   notesSection: {
     marginBottom: 24,
